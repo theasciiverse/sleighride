@@ -30,7 +30,12 @@ domain folklore only (no Rudolph: our reindeer have black noses).
 Playable (2026-10-05): two courses, six racers, items, Santa.
 
 - Splash/title screen: SLEIGHRIDE, each racer turning on a lit stage, a
-  course picker (Left/Right), an autopilot race behind it all
+  course picker (Left/Right), difficulty (Up/Down), an autopilot race
+  behind it all
+- Difficulty sets the rivals' pace: Easy 93%, Normal 96% (default), Hard
+  100%. The rivals drift perfectly, so full pace is a hard race for a
+  person. Measured with the autopilot driving the player from the back:
+  about 1st on Easy, about 2nd on Normal, 3rd to 4th on Hard
 - Choose your racer (Enter on the title): any of the six, with speed,
   accel, handling and weight bars; the pick starts at the back and the rest,
   Bob included, race as rivals
@@ -44,10 +49,19 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   Sprocket (snowmobile), Pip (toboggan), Nutmeg (skis), each with its own
   handling (top speed, accel, turn, grip, drift charge, weight)
 - Rivals keep their own lines, drift, take rocket starts give or take their
-  nerves, steer round dropped presents, use items sensibly, and close up a
-  little when behind the player / ease off ahead
-- Places 1st to 6th, standings, bumping by weight, minimap markers, results
-  card with the whole field
+  nerves, steer round dropped presents and pass slower racers, use items
+  sensibly, and close up a little when behind the player / ease off ahead
+- Places 1st to 6th, standings, minimap markers, results card with the
+  whole field
+- Bumps: racers that touch are pushed apart; only closing on each other
+  costs speed, as a weighted impulse (the heavy shove the light). Rivals
+  pull out to pass anyone just ahead on their line
+- Balance (2026-10-05, after "why am I always the slowest?"): each ride's
+  solo lap is within about 1% of the others, and over many autopilot races
+  every racer averages 3rd to 4th; tests guard both. The cause of the
+  complaint was a bump bug (every frame of contact cost 4% speed, so the
+  player, starting at the back in traffic, got glued to the pack) plus a
+  6% top-speed gap for the reindeer
 - Present boxes (three rows of four) with odds that lean on place:
   snowballs (three, straight), present (lobbed, bursts; with brake: dropped
   behind as a trap), tinsel (homes in on the racer one place ahead),
@@ -66,7 +80,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 19 tests, including a full six-racer race on each course (winner to last
+- 21 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens

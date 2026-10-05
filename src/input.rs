@@ -61,6 +61,8 @@ pub enum Cmd {
     Exit,
     Left,
     Right,
+    Up,
+    Down,
 }
 
 #[cfg(feature = "gamepad")]
@@ -145,7 +147,8 @@ impl Input {
                     Key::Drift => self.cmds.push(Cmd::Confirm),
                     Key::Left => self.cmds.push(Cmd::Left),
                     Key::Right => self.cmds.push(Cmd::Right),
-                    _ => {}
+                    Key::Gas => self.cmds.push(Cmd::Up),
+                    Key::Brake => self.cmds.push(Cmd::Down),
                 }
             }
             return;
@@ -219,6 +222,8 @@ impl Input {
                                 Button::Select => self.cmds.push(Cmd::Help),
                                 Button::DPadLeft => self.cmds.push(Cmd::Left),
                                 Button::DPadRight => self.cmds.push(Cmd::Right),
+                                Button::DPadUp => self.cmds.push(Cmd::Up),
+                                Button::DPadDown => self.cmds.push(Cmd::Down),
                                 _ => {}
                             }
                         }

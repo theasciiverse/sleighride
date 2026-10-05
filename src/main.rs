@@ -46,7 +46,7 @@ fn main() -> io::Result<()> {
         let secs_arg = get(4);
         let wait_drift = secs_arg.ends_with('d');
         let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches('d').parse().unwrap_or(10.0));
-        let mut g = Game::new(start, course, pick);
+        let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
         }
@@ -66,7 +66,7 @@ fn main() -> io::Result<()> {
     log::info!("start kitty_keyboard={kitty}");
     let mut input = Input::new(kitty);
     input.open_pad();
-    let mut game = Game::new(start, course, pick);
+    let mut game = Game::new(start, course, pick, 1);
     let result = run(&mut terminal, &mut game, &mut input);
     if kitty {
         let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);

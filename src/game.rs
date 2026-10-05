@@ -22,6 +22,11 @@ use std::time::Instant;
 /// The name on the splash screen.
 pub const TITLE: &str = "SLEIGHRIDE";
 
+/// Difficulty: its name and the rivals' pace (a share of their top speed).
+/// The rivals drift perfectly, so at full pace they are a hard race; a
+/// little slower gives a person a fair one.
+pub const DIFFICULTY: [(&str, f32); 3] = [("Easy", 0.93), ("Normal", 0.96), ("Hard", 1.0)];
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Phase {
     Title,
@@ -35,6 +40,8 @@ pub struct Game {
     pub course: usize,
     /// Roster index of the racer the player drives.
     pub pick: usize,
+    /// Index into DIFFICULTY.
+    pub level: usize,
     pub race: Race,
     cam: Camera,
     particles: Vec<Particle>,
@@ -66,11 +73,12 @@ fn ordinal(n: u8) -> String {
 }
 
 impl Game {
-    pub fn new(phase: Phase, course: usize, pick: usize) -> Game {
+    pub fn new(phase: Phase, course: usize, pick: usize, level: usize) -> Game {
         let seed = 0x5EED ^ (course as u32 + 1) * 7919;
-        let race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
+        let mut race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
+        race.rival_pace = DIFFICULTY[level].1;
         let cam = Camera::behind(&race.racers[pick].kart);
-        let mut g = Game { phase, course, pick, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        let mut g = Game { phase, course, pick, level, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
         if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
@@ -81,8 +89,8 @@ impl Game {
     }
 
     fn switch(&mut self, p: Phase, course: usize, input: &mut Input) {
-        log::info!("phase {:?} -> {p:?} on {} as {}", self.phase, courses()[course].0, ROSTER[self.pick].name);
-        *self = Game::new(p, course, self.pick);
+        log::info!("phase {:?} -> {p:?} on {} as {}, {}", self.phase, courses()[course].0, ROSTER[self.pick].name, DIFFICULTY[self.level].0);
+        *self = Game::new(p, course, self.pick, self.level);
         input.clear();
     }
 
@@ -122,6 +130,8 @@ impl Game {
                 (Phase::Select, Cmd::Right) => self.pick = (self.pick + 1) % ROSTER.len(),
                 (Phase::Title, Cmd::Left) => return self.switch(Phase::Title, (self.course + n - 1) % n, input),
                 (Phase::Title, Cmd::Right) => return self.switch(Phase::Title, (self.course + 1) % n, input),
+                (Phase::Title, Cmd::Up) => self.level = (self.level + 1).min(DIFFICULTY.len() - 1),
+                (Phase::Title, Cmd::Down) => self.level = self.level.saturating_sub(1),
                 (Phase::Race, Cmd::Pause) => self.paused = !self.paused,
                 (Phase::Race, Cmd::Back) if self.paused => return self.switch(Phase::Title, self.course, input),
                 (Phase::Race, Cmd::Back) => self.paused = true,
@@ -348,6 +358,8 @@ impl Game {
         let course = format!("<  {}  >", courses()[self.course].0);
         let y1 = area.height.saturating_sub(4);
         put_text(buf, area.width.saturating_sub(course.len() as u16) / 2, y1, &course, accent_style());
+        let level = format!("Rivals:  {}  (Up/Down)", DIFFICULTY[self.level].0);
+        put_text(buf, area.width.saturating_sub(level.len() as u16) / 2, y1.saturating_sub(1), &level, panel_style());
         let keys = "Enter or Space: choose racer    Left/Right: course    H: controls    Esc: quit";
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, y1 + 1, keys, panel_style());
         if !input.exact {
@@ -679,7 +691,7 @@ mod tests {
 
     #[test]
     fn a_race_ends_on_the_results_card() {
-        let mut g = Game::new(Phase::Race, 0, 0);
+        let mut g = Game::new(Phase::Race, 0, 0, 1);
         let input = Input::new(true);
         assert!(screen_text(&g, &input).contains("LAP 1/3"));
         while !g.player_done() && g.race.clock < 500.0 {
@@ -695,7 +707,7 @@ mod tests {
 
     #[test]
     fn choosing_a_racer_and_racing_as_them() {
-        let mut g = Game::new(Phase::Title, 0, 0);
+        let mut g = Game::new(Phase::Title, 0, 0, 1);
         let mut input = Input::new(true);
         input.cmds.push(Cmd::Confirm);
         g.tick(&mut input);
@@ -715,8 +727,12 @@ mod tests {
 
     #[test]
     fn the_title_screen_shows_the_course_and_a_racer() {
-        let g = Game::new(Phase::Title, 1, 0);
-        let text = screen_text(&g, &Input::new(true));
+        let mut g = Game::new(Phase::Title, 1, 0, 1);
+        let mut input = Input::new(true);
+        input.cmds.push(Cmd::Down);
+        g.tick(&mut input);
+        let text = screen_text(&g, &input);
+        assert!(text.contains("Rivals:  Easy"), "{text}");
         assert!(text.contains("Eggnogg"), "{text}");
         assert!(text.contains(" on "));
     }

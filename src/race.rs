@@ -176,6 +176,8 @@ pub struct Race {
     pub order: Vec<usize>,
     /// The autopilot drives the player too (screenshots, tests).
     pub autopilot: bool,
+    /// Rivals' top speed as a share of their own (difficulty).
+    pub rival_pace: f32,
     seed: u32,
 }
 
@@ -200,6 +202,8 @@ impl Race {
             let slot = match player {
                 Some(p) if who == p => n - 1,
                 Some(p) if who > p => who - 1,
+                // with nobody playing, the grid turns with the seed
+                None => (who + seed as usize) % n,
                 _ => who,
             };
             let back = 10 + slot as isize * 9;
@@ -255,6 +259,7 @@ impl Race {
             notes: Vec::new(),
             order: Vec::new(),
             autopilot: false,
+            rival_pace: 1.0,
             seed: seed.max(1),
         }
     }
@@ -334,11 +339,12 @@ impl Race {
         let player_progress = self.player().map(|p| self.progress(p));
         for i in 0..self.racers.len() {
             let c = controls[i];
-            // the field closes up a little on the player, and eases off ahead
+            // rivals run at the difficulty's pace, close up a little on the
+            // player and ease off ahead
             if let (Some(pp), true) = (player_progress, self.racers[i].ai.is_some()) {
                 let gap = pp - self.progress(i);
                 let k = (gap / 300.0 * 0.05).clamp(-0.05, 0.07);
-                self.racers[i].kart.stats.top = ROSTER[self.racers[i].who].stats.top * (1.0 + k);
+                self.racers[i].kart.stats.top = ROSTER[self.racers[i].who].stats.top * self.rival_pace * (1.0 + k);
             }
             let track = &self.track;
             let r = &mut self.racers[i];
@@ -414,6 +420,9 @@ impl Race {
         }
     }
 
+    /// Racers that touch are pushed apart, and if they were closing on
+    /// each other they trade a little momentum along the line between them,
+    /// the heavier pushing the lighter. Touching alone costs nothing.
     fn bumps(&mut self) {
         let n = self.racers.len();
         for a in 0..n {
@@ -428,13 +437,30 @@ impl Race {
                 let push = BUMP_R - d;
                 let (wa, wb) = (ka.stats.weight, kb.stats.weight);
                 let (sa, sb) = (wb / (wa + wb), wa / (wa + wb));
+                let vel = |k: &Kart| (k.travel.cos() * k.speed, k.travel.sin() * k.speed);
+                let (va, vb) = (vel(ka), vel(kb));
+                // closing speed along the line from a to b
+                let closing = (va.0 - vb.0) * ux + (va.1 - vb.1) * uy;
                 let (ra, rb) = pair_mut(&mut self.racers, a, b);
                 ra.kart.x -= ux * push * sa;
                 ra.kart.y -= uy * push * sa;
                 rb.kart.x += ux * push * sb;
                 rb.kart.y += uy * push * sb;
-                ra.kart.speed *= 1.0 - 0.04 * sa;
-                rb.kart.speed *= 1.0 - 0.04 * sb;
+                if closing > 0.0 {
+                    // a slightly bouncy impulse, shared by weight
+                    let j = closing * 1.3;
+                    let set = |k: &mut Kart, v: (f32, f32)| {
+                        let sp = v.0.hypot(v.1);
+                        if sp > 0.01 {
+                            let t = v.1.atan2(v.0);
+                            let backwards = (t - k.heading).cos() < 0.0;
+                            k.travel = if backwards { t + std::f32::consts::PI } else { t };
+                            k.speed = if backwards { -sp } else { sp };
+                        }
+                    };
+                    set(&mut ra.kart, (va.0 - ux * j * sa, va.1 - uy * j * sa));
+                    set(&mut rb.kart, (vb.0 + ux * j * sb, vb.1 + uy * j * sb));
+                }
             }
         }
     }
@@ -838,3 +864,57 @@ mod tests {
         assert!(caught, "Santa caught someone");
     }
 }
+
+#[cfg(test)]
+mod balance {
+    use super::*;
+
+    /// Average place of each racer with everyone on autopilot.
+    fn average_places(make: fn() -> Track, runs: u32) -> Vec<f32> {
+        let mut sum = [0u32; 6];
+        for seed in 1..=runs {
+            let mut r = Race::new(make(), None, seed * 977);
+            while r.order.len() < 6 && r.clock < 500.0 {
+                r.step(Controls::default());
+            }
+            for (i, rc) in r.racers.iter().enumerate() {
+                sum[i] += rc.place as u32;
+            }
+        }
+        sum.iter().map(|&s| s as f32 / runs as f32).collect()
+    }
+
+    #[test]
+    fn no_ride_runs_away_with_it() {
+        // six racers average 3.5; nobody should be far off over many races
+        for (name, make) in crate::track::courses() {
+            let avg = average_places(make, 24);
+            for (i, a) in avg.iter().enumerate() {
+                assert!((2.4..4.6).contains(a), "{name}: {} averages {a:.1}", ROSTER[i].name);
+            }
+        }
+    }
+
+    #[test]
+    fn at_normal_pace_a_good_driver_from_the_back_can_win() {
+        // the autopilot drives the player: as good as the rivals, but they
+        // run at the Normal pace
+        for pick in 0..ROSTER.len() {
+            let mut wins_or_podiums = 0;
+            for seed in 1..=4u32 {
+                let mut r = Race::new(Track::frozen_lake(), Some(pick), seed * 101);
+                r.autopilot = true;
+                r.rival_pace = 0.96;
+                let p = r.player().unwrap();
+                while r.racers[p].finished.is_none() && r.clock < 400.0 {
+                    r.step(Controls::default());
+                }
+                if r.racers[p].place <= 3 {
+                    wins_or_podiums += 1;
+                }
+            }
+            assert!(wins_or_podiums >= 2, "{} on the podium only {wins_or_podiums} of 4", ROSTER[pick].name);
+        }
+    }
+}
+

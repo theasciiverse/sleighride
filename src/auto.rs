@@ -83,6 +83,22 @@ pub fn drive(r: &Race, i: usize) -> Controls {
             }
         }
     }
+    // pull out to pass anyone just ahead on this line
+    for (j, o) in r.racers.iter().enumerate() {
+        if j == i {
+            continue;
+        }
+        let (dx, dy) = (o.kart.x - k.x, o.kart.y - k.y);
+        let along = dx * k.heading.cos() + dy * k.heading.sin();
+        let side = -dx * k.heading.sin() + dy * k.heading.cos();
+        if along > 0.0 && along < 14.0 && side.abs() < 3.5 && o.kart.speed < k.speed + 3.0 {
+            // where they are across the road, roughly; go round on the side
+            // with more road
+            let theirs = offset + side;
+            offset = if theirs < 0.0 { theirs + 5.5 } else { theirs - 5.5 };
+            break;
+        }
+    }
     let mut c = follow(r, k.x, k.y, k.heading, k.speed, k.drift, me.idx, offset.clamp(-10.0, 10.0));
     if me.roulette > 0.0 {
         return c;
