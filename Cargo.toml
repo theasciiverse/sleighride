@@ -1,0 +1,22 @@
+[package]
+name = "sleighride"
+version = "0.1.0"
+edition = "2021"
+description = "Kart racing with Santa's runaway helpers, in the terminal"
+
+[[bin]]
+name = "sleighride"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+log = "0.4"
+env_logger = "0.11"
+gilrs = { version = "0.11", optional = true }
+
+[features]
+default = ["gamepad"]
+gamepad = ["dep:gilrs"]
+
+[profile.release]
+debug = 1
