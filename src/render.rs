@@ -9,7 +9,7 @@
 //! pixel. Pines and snow are billboards, scaled by their distance.
 
 use crate::kart::Kart;
-use crate::model::{Model, Pose, Ride, VOX};
+use crate::model::{Model, Pose, Ride, FRAMES, VOX};
 use crate::race::{Race, Racer, ShotKind};
 use crate::roster::ROSTER;
 use crate::track::Theme;
@@ -379,19 +379,42 @@ pub fn tier_colour(tier: u8, time: f32) -> Rgb {
     }
 }
 
-/// The voxel models, built once: the roster in order, then Santa's plough,
-/// then the present (box, shot and trap).
-fn models() -> &'static Vec<Model> {
-    static MODELS: OnceLock<Vec<Model>> = OnceLock::new();
+/// The voxel models, built once: every animation frame of each racer in
+/// roster order, then Santa's plough.
+fn models() -> &'static Vec<[Model; FRAMES]> {
+    static MODELS: OnceLock<Vec<[Model; FRAMES]>> = OnceLock::new();
     MODELS.get_or_init(|| {
-        let mut v: Vec<Model> = ROSTER.iter().map(|w| Model::build(w.ride, &w.elf)).collect();
-        v.push(Model::build(Ride::Plough, &ROSTER[0].elf));
-        v.push(Model::gift((206, 36, 52), (250, 214, 70)));
+        let mut v: Vec<[Model; FRAMES]> = ROSTER.iter().map(|w| Model::frames(w.ride, &w.elf)).collect();
+        v.push(Model::frames(Ride::Plough, &ROSTER[0].elf));
         v
     })
 }
 const PLOUGH_MODEL: usize = ROSTER.len();
-const GIFT_MODEL: usize = ROSTER.len() + 1;
+
+fn gift() -> &'static Model {
+    static GIFT: OnceLock<Model> = OnceLock::new();
+    GIFT.get_or_init(|| Model::gift((206, 36, 52), (250, 214, 70)))
+}
+
+/// Animation frame for a ride that has travelled `odo` units, and how far
+/// the whole model rises on that frame (a galloping reindeer's bound), in
+/// voxels.
+pub fn frame_of(ride: Ride, odo: f32) -> (usize, f32) {
+    // units travelled per full cycle
+    let cycle = match ride {
+        Ride::Reindeer => 11.0,
+        Ride::Skis => 10.0,
+        Ride::Snowmobile | Ride::Plough => 3.0,
+        Ride::Sleigh | Ride::Toboggan => 16.0,
+    };
+    let f = ((odo / cycle).fract() * FRAMES as f32) as usize % FRAMES;
+    let rise = match ride {
+        Ride::Reindeer => [0.0, 0.8, 1.6, 0.8][f],
+        Ride::Skis => [0.0, 0.5, 0.0, 0.5][f],
+        _ => 0.0,
+    };
+    (f, rise)
+}
 
 fn shadow(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, w: f32) {
     let sw = w * scale * 0.5;
@@ -431,11 +454,12 @@ fn pose_at(v: &View, cam: &Camera, x: f32, y: f32, heading: f32, size: f32, haze
 
 fn racer(cv: &mut Canvas, v: &View, cam: &Camera, r: &Racer, haze: Rgb, time: f32) {
     let k = &r.kart;
-    let model = &models()[r.who];
+    let (frame, rise) = frame_of(ROSTER[r.who].ride, k.odo);
+    let model = &models()[r.who][frame];
     let Some((mut pose, scale)) = pose_at(v, cam, k.x, k.y, k.heading, model.size, haze) else { return };
     shadow(cv, pose.sx, pose.sy, scale, 3.4);
     let hop = if k.hop > 0.0 { (k.hop / 0.2 * std::f32::consts::PI).sin().max(0.0) } else { 0.0 };
-    pose.sy -= hop * 0.6 * scale;
+    pose.sy -= hop * 0.6 * scale + rise * pose.px;
     // swung further into a drift the way kart racers show it, and right
     // round in a spin-out
     pose.yaw += r.lean * 0.45 + k.spin;
@@ -625,7 +649,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
             Thing::Racer(i) => racer(cv, &v, &s.cam, &r.racers[i], haze, s.time),
             Thing::Santa => {
                 let k = &r.santa.kart;
-                let m = &models()[PLOUGH_MODEL];
+                let m = &models()[PLOUGH_MODEL][frame_of(Ride::Plough, k.odo).0];
                 if let Some((pose, scale)) = pose_at(&v, &s.cam, k.x, k.y, k.heading, m.size, haze) {
                     shadow(cv, pose.sx, pose.sy, scale, 6.0);
                     m.draw(cv, &pose);
@@ -637,7 +661,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 }
             }
             Thing::Box => {
-                let m = &models()[GIFT_MODEL];
+                let m = gift();
                 let spin = s.time * 2.0 + x * 0.1;
                 if let Some((mut pose, scale)) = pose_at(&v, &s.cam, x, y, spin, 1.0, haze) {
                     shadow(cv, pose.sx, pose.sy, scale, 1.6);
@@ -662,7 +686,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                         }
                     }
                     ShotKind::Present => {
-                        let m = &models()[GIFT_MODEL];
+                        let m = gift();
                         if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, s.time * 9.0, 0.7, haze) {
                             shadow(cv, pose.sx, pose.sy, scale, 1.0);
                             pose.sy -= lift;
@@ -673,7 +697,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 }
             }
             Thing::Trap => {
-                let m = &models()[GIFT_MODEL];
+                let m = gift();
                 let wobble = (s.time * 6.0 + x).sin() * 0.15;
                 if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, 0.6, 0.8, haze) {
                     pose.roll = wobble;

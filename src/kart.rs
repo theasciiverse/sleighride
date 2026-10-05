@@ -92,6 +92,8 @@ pub struct Kart {
     pub surface: Surface,
     /// Santa's plough: goes through pines and can't be stopped.
     pub plough: bool,
+    /// Distance travelled, for animation.
+    pub odo: f32,
     /// Time the gas has been held during the countdown.
     pub start_hold: f32,
     pub events: Vec<Event>,
@@ -133,6 +135,7 @@ impl Kart {
             knock: 0.0,
             surface: Surface::Road,
             plough: false,
+            odo: 0.0,
             start_hold: 0.0,
             events: Vec::new(),
         }
@@ -314,6 +317,7 @@ impl Kart {
         }
         self.x = nx;
         self.y = ny;
+        self.odo += self.speed.abs() * DT;
     }
 
     /// Hit something whose surface faces along (`nx`, `ny`): a hard hit

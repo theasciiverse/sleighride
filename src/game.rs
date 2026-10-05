@@ -7,7 +7,7 @@
 
 use crate::input::{Cmd, Input};
 use crate::kart::{Controls, Event, DT};
-use crate::model::{Model, Pose};
+use crate::model::{Model, Pose, FRAMES};
 use crate::race::{Item, Note, Race, COUNTDOWN, ITEMS, LAPS};
 use crate::render::{self, accent_style, big_text, big_text_at, big_width, panel_style, put_text, Camera, Canvas, Particle, Rgb, Scene};
 use crate::roster::{ROSTER, SANTA_COLOUR};
@@ -25,12 +25,16 @@ pub const TITLE: &str = "SLEIGHRIDE";
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Phase {
     Title,
+    /// Choose your racer.
+    Select,
     Race,
 }
 
 pub struct Game {
     pub phase: Phase,
     pub course: usize,
+    /// Roster index of the racer the player drives.
+    pub pick: usize,
     pub race: Race,
     cam: Camera,
     particles: Vec<Particle>,
@@ -62,12 +66,12 @@ fn ordinal(n: u8) -> String {
 }
 
 impl Game {
-    pub fn new(phase: Phase, course: usize) -> Game {
+    pub fn new(phase: Phase, course: usize, pick: usize) -> Game {
         let seed = 0x5EED ^ (course as u32 + 1) * 7919;
-        let race = Race::new((courses()[course].1)(), phase == Phase::Race, seed);
-        let cam = Camera::behind(&race.racers[0].kart);
-        let mut g = Game { phase, course, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
-        if phase == Phase::Title {
+        let race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
+        let cam = Camera::behind(&race.racers[pick].kart);
+        let mut g = Game { phase, course, pick, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
                 g.step_race(Controls::default());
@@ -77,9 +81,16 @@ impl Game {
     }
 
     fn switch(&mut self, p: Phase, course: usize, input: &mut Input) {
-        log::info!("phase {:?} -> {p:?} on {}", self.phase, courses()[course].0);
-        *self = Game::new(p, course);
+        log::info!("phase {:?} -> {p:?} on {} as {}", self.phase, courses()[course].0, ROSTER[self.pick].name);
+        *self = Game::new(p, course, self.pick);
         input.clear();
+    }
+
+    /// Between the title and the racer choice: same race behind, new screen.
+    fn screen(&mut self, p: Phase) {
+        log::info!("phase {:?} -> {p:?}", self.phase);
+        self.phase = p;
+        self.t = 0.0;
     }
 
     fn rand(&mut self) -> f32 {
@@ -89,9 +100,9 @@ impl Game {
         (self.seed & 0xffff) as f32 / 65535.0
     }
 
-    /// The racer the camera follows: the player, or Bob on the title screen.
+    /// The racer the camera follows: the player, or their pick on the menus.
     fn me(&self) -> usize {
-        self.race.player().unwrap_or(0)
+        self.race.player().unwrap_or(self.pick)
     }
 
     pub fn tick(&mut self, input: &mut Input) {
@@ -103,8 +114,12 @@ impl Game {
                 (_, Cmd::Exit) => self.exit = true,
                 (_, Cmd::Help) => self.help = !self.help,
                 (_, Cmd::Back) | (_, Cmd::Confirm) if self.help => self.help = false,
-                (Phase::Title, Cmd::Confirm) => return self.switch(Phase::Race, self.course, input),
+                (Phase::Title, Cmd::Confirm) => self.screen(Phase::Select),
                 (Phase::Title, Cmd::Back) => self.exit = true,
+                (Phase::Select, Cmd::Confirm) => return self.switch(Phase::Race, self.course, input),
+                (Phase::Select, Cmd::Back) => self.screen(Phase::Title),
+                (Phase::Select, Cmd::Left) => self.pick = (self.pick + ROSTER.len() - 1) % ROSTER.len(),
+                (Phase::Select, Cmd::Right) => self.pick = (self.pick + 1) % ROSTER.len(),
                 (Phase::Title, Cmd::Left) => return self.switch(Phase::Title, (self.course + n - 1) % n, input),
                 (Phase::Title, Cmd::Right) => return self.switch(Phase::Title, (self.course + 1) % n, input),
                 (Phase::Race, Cmd::Pause) => self.paused = !self.paused,
@@ -255,6 +270,7 @@ impl Game {
         let big = ((cv.w as i32) / 70).clamp(1, 4);
         match self.phase {
             Phase::Title => self.draw_title_canvas(cv, big),
+            Phase::Select => self.draw_select_canvas(cv, big),
             Phase::Race => self.draw_race_canvas(cv, big),
         }
     }
@@ -267,6 +283,7 @@ impl Game {
         cv.flush(buf, area);
         match self.phase {
             Phase::Title => self.draw_title_hud(buf, area, input),
+            Phase::Select => self.draw_select_hud(buf, area),
             Phase::Race => self.draw_race_hud(buf, area, input),
         }
         if self.help {
@@ -275,31 +292,45 @@ impl Game {
     }
 
     fn draw_title_canvas(&self, cv: &mut Canvas, big: i32) {
-        // darken the race behind the splash a touch
-        for p in cv.px.iter_mut() {
-            *p = render::mix(*p, (10, 12, 34), 0.55);
-        }
+        dim(cv);
         big_text(cv, TITLE, (cv.h as i32) / 7, big + 1, (236, 60, 70));
         // the showcase: each racer in turn, turning slowly on a lit stage
         let k = ((self.t / 3.0) as usize) % ROSTER.len();
-        let s = (cv.h as f32 / 75.0).max(0.7);
-        let (sx, sy) = (cv.w as f32 / 2.0, cv.h as f32 * 0.64);
-        let (rx, ry) = (s * 26.0, s * 6.0);
-        for y in (sy - ry * 6.0) as i32..(sy + ry * 1.6) as i32 {
-            for x in (sx - rx * 1.4) as i32..(sx + rx * 1.4) as i32 {
-                let (dx, dy) = ((x as f32 - sx) / rx, (y as f32 - sy) / ry);
-                let floor = dx * dx + dy * dy;
-                if floor <= 1.0 {
-                    // the stage: packed snow, brighter toward the middle
-                    cv.put(x, y, render::mix((236, 242, 255), (150, 164, 206), floor));
-                } else if dy < 0.0 && dx.abs() < 1.0 + dy * -0.04 {
-                    // a soft beam of light from above
-                    cv.blend(x, y, (255, 246, 214), 0.10 * (1.0 - dx.abs()));
-                }
+        stage(cv, k, self.t, cv.w as f32 / 2.0, cv.h as f32 * 0.64);
+    }
+
+    fn draw_select_canvas(&self, cv: &mut Canvas, big: i32) {
+        dim(cv);
+        big_text(cv, "CHOOSE YOUR RACER", (cv.h as i32) / 8, big, (250, 210, 70));
+        stage(cv, self.pick, self.t, cv.w as f32 * 0.38, cv.h as f32 * 0.66);
+    }
+
+    fn draw_select_hud(&self, buf: &mut Buffer, area: Rect) {
+        let who = &ROSTER[self.pick];
+        let c = who.colour();
+        let x = (area.width as f32 * 0.58) as u16;
+        let y = (area.height as f32 * 0.30) as u16;
+        put_text(buf, x, y, &format!(" {} ", who.name), Style::default().fg(Color::Rgb(c.0, c.1, c.2)).bg(Color::Rgb(14, 18, 44)).add_modifier(Modifier::BOLD));
+        put_text(buf, x, y + 1, &format!(" on {} ", who.ride_name), panel_style());
+        // stats as bars, scaled across the roster
+        let stat = |f: fn(&crate::kart::Stats) -> f32| {
+            let v = f(&who.stats);
+            let (lo, hi) = ROSTER.iter().map(|w| f(&w.stats)).fold((f32::MAX, f32::MIN), |(a, b), x| (a.min(x), b.max(x)));
+            2 + ((v - lo) / (hi - lo).max(1e-3) * 8.0).round() as usize
+        };
+        let rows: [(&str, usize); 4] = [("SPEED   ", stat(|s| s.top)), ("ACCEL   ", stat(|s| s.accel)), ("HANDLING", stat(|s| s.turn + s.grip * 0.1)), ("WEIGHT  ", stat(|s| s.weight))];
+        for (i, (label, n)) in rows.iter().enumerate() {
+            let yy = y + 3 + i as u16;
+            put_text(buf, x, yy, &format!(" {label} "), panel_style());
+            for j in 0..10u16 {
+                let on = (j as usize) < *n;
+                put_text(buf, x + 11 + j, yy, "█", panel_style().fg(if on { Color::Rgb(c.0, c.1, c.2) } else { Color::Rgb(50, 56, 90) }));
             }
         }
-        let pose = Pose { sx, sy, px: s, yaw: self.t * 0.9, pitch: 0.28, roll: 0.0, nose: 0.0, fog: 0.0, haze: (0, 0, 0) };
-        showcase()[k].draw(cv, &pose);
+        let keys = "Left/Right: choose    Enter: race    Esc: back";
+        put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, area.height.saturating_sub(3), keys, accent_style());
+        let pos = format!("{} of {}", self.pick + 1, ROSTER.len());
+        put_text(buf, area.width.saturating_sub(pos.len() as u16) / 2, area.height.saturating_sub(4), &pos, panel_style());
     }
 
     fn draw_title_hud(&self, buf: &mut Buffer, area: Rect, input: &Input) {
@@ -317,7 +348,7 @@ impl Game {
         let course = format!("<  {}  >", courses()[self.course].0);
         let y1 = area.height.saturating_sub(4);
         put_text(buf, area.width.saturating_sub(course.len() as u16) / 2, y1, &course, accent_style());
-        let keys = "Enter or Space: race    Left/Right: course    H: controls    Esc: quit";
+        let keys = "Enter or Space: choose racer    Left/Right: course    H: controls    Esc: quit";
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, y1 + 1, keys, panel_style());
         if !input.exact {
             let l = "(no kitty keyboard here: Up starts the gas, Down stops it, Space toggles drift)";
@@ -523,10 +554,40 @@ fn item_box_px(canvas_h: usize) -> i32 {
     ((canvas_h as f32) * 0.13).clamp(10.0, 40.0) as i32
 }
 
-/// Showcase models for the title screen, one per racer.
-fn showcase() -> &'static Vec<Model> {
-    static M: OnceLock<Vec<Model>> = OnceLock::new();
-    M.get_or_init(|| ROSTER.iter().map(|w| Model::build(w.ride, &w.elf)).collect())
+/// Showcase models for the menus: every animation frame of each racer.
+fn showcase() -> &'static Vec<[Model; FRAMES]> {
+    static M: OnceLock<Vec<[Model; FRAMES]>> = OnceLock::new();
+    M.get_or_init(|| ROSTER.iter().map(|w| Model::frames(w.ride, &w.elf)).collect())
+}
+
+/// Darken the race behind a menu.
+fn dim(cv: &mut Canvas) {
+    for p in cv.px.iter_mut() {
+        *p = render::mix(*p, (10, 12, 34), 0.55);
+    }
+}
+
+/// A racer turning slowly on a lit snow stage centred on (sx, sy), going
+/// through its animation as if moving at a canter.
+fn stage(cv: &mut Canvas, who: usize, t: f32, sx: f32, sy: f32) {
+    let s = (cv.h as f32 / 75.0).max(0.7);
+    let (rx, ry) = (s * 26.0, s * 6.0);
+    for y in (sy - ry * 6.0) as i32..(sy + ry * 1.6) as i32 {
+        for x in (sx - rx * 1.4) as i32..(sx + rx * 1.4) as i32 {
+            let (dx, dy) = ((x as f32 - sx) / rx, (y as f32 - sy) / ry);
+            let floor = dx * dx + dy * dy;
+            if floor <= 1.0 {
+                // the stage: packed snow, brighter toward the middle
+                cv.put(x, y, render::mix((236, 242, 255), (150, 164, 206), floor));
+            } else if dy < 0.0 && dx.abs() < 1.0 + dy * -0.04 {
+                // a soft beam of light from above
+                cv.blend(x, y, (255, 246, 214), 0.10 * (1.0 - dx.abs()));
+            }
+        }
+    }
+    let (frame, rise) = render::frame_of(ROSTER[who].ride, t * 30.0);
+    let pose = Pose { sx, sy: sy - rise * s, px: s, yaw: t * 0.9, pitch: 0.28, roll: 0.0, nose: 0.0, fog: 0.0, haze: (0, 0, 0) };
+    showcase()[who][frame].draw(cv, &pose);
 }
 
 /// 8 x 8 item icons.
@@ -618,7 +679,7 @@ mod tests {
 
     #[test]
     fn a_race_ends_on_the_results_card() {
-        let mut g = Game::new(Phase::Race, 0);
+        let mut g = Game::new(Phase::Race, 0, 0);
         let input = Input::new(true);
         assert!(screen_text(&g, &input).contains("LAP 1/3"));
         while !g.player_done() && g.race.clock < 500.0 {
@@ -633,8 +694,28 @@ mod tests {
     }
 
     #[test]
+    fn choosing_a_racer_and_racing_as_them() {
+        let mut g = Game::new(Phase::Title, 0, 0);
+        let mut input = Input::new(true);
+        input.cmds.push(Cmd::Confirm);
+        g.tick(&mut input);
+        assert_eq!(g.phase, Phase::Select);
+        input.cmds.extend([Cmd::Right, Cmd::Right]);
+        g.tick(&mut input);
+        assert_eq!(ROSTER[g.pick].name, "Sprocket");
+        assert!(screen_text(&g, &input).contains("Sprocket"));
+        input.cmds.push(Cmd::Confirm);
+        g.tick(&mut input);
+        assert_eq!(g.phase, Phase::Race);
+        let p = g.race.player().unwrap();
+        assert_eq!(ROSTER[g.race.racers[p].who].name, "Sprocket");
+        assert_eq!(g.race.racers[p].place, 6, "the player starts at the back");
+        assert!(g.race.racers[0].ai.is_some(), "Bob races as a rival");
+    }
+
+    #[test]
     fn the_title_screen_shows_the_course_and_a_racer() {
-        let g = Game::new(Phase::Title, 1);
+        let g = Game::new(Phase::Title, 1, 0);
         let text = screen_text(&g, &Input::new(true));
         assert!(text.contains("Eggnogg"), "{text}");
         assert!(text.contains(" on "));

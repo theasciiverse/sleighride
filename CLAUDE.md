@@ -31,6 +31,12 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 
 - Splash/title screen: SLEIGHRIDE, each racer turning on a lit stage, a
   course picker (Left/Right), an autopilot race behind it all
+- Choose your racer (Enter on the title): any of the six, with speed,
+  accel, handling and weight bars; the pick starts at the back and the rest,
+  Bob included, race as rivals
+- Animation, paced by distance travelled (`render::frame_of`, 4 frames per
+  cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
+  with poles planting, snowmobile and plough tracks roll, hat bobbles swing
 - Courses: **Frozen Lake** (aurora night, ice cracks, two ice patches) and
   **Eggnogg** (sunset, a creamy eggnog lake flecked with nutmeg, gold kerbs,
   four ice patches, twistier)
@@ -60,7 +66,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 17 tests, including a full six-racer race on each course (winner to last
+- 19 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -114,6 +120,7 @@ World units are about half a metre; the sim steps at 60 Hz. Frozen Lake is
 cargo run --release                 # title screen
 cargo run --release -- --race       # straight into a race
 cargo run --release -- --race --course 2           # ... on Eggnogg
+cargo run --release -- --race --as Nutmeg          # ... as another racer
 RUST_LOG=sleighride=debug cargo run --release 2>sleighride.log
 cargo run --release -- --shot out.ppm 160 45 12    # screenshot of the title screen
 cargo run --release -- --race --shot out.ppm 160 45 30   # a race, everyone on autopilot
@@ -171,6 +178,7 @@ A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
 
 ## Next steps
 
+- [ ] Network play: LAN and internet over iroh, as Panzer and Tetrix do
 - [ ] Weather and wildlife hazards (above)
 - [ ] Sound (rodio, synthesised, as in the sibling games)
 - [ ] Battle mode: in or out for v1?

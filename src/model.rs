@@ -11,6 +11,8 @@ use crate::render::{mix, Canvas, Rgb};
 
 /// World units per voxel.
 pub const VOX: f32 = 0.18;
+/// Animation frames per cycle (a stride, a turn of the tracks).
+pub const FRAMES: usize = 4;
 const LX: i32 = 32;
 const LY: i32 = 21;
 const LZ: i32 = 30;
@@ -156,7 +158,7 @@ impl Grid {
 
     /// A seated elf whose seat is at (x, z): coat, arms reaching `reach`
     /// forward, head with hair at the back, pointed ears, a drooping hat.
-    fn elf(&mut self, x: i32, z: i32, reach: i32, e: &Elf) {
+    fn elf(&mut self, x: i32, z: i32, reach: i32, e: &Elf, frame: usize) {
         let (dx, dz) = (x - 7, z - 6);
         self.block((5 + dx, 8 + dx), (-2, 2), (6 + dz, 9 + dz), e.coat);
         self.block((5 + dx, 5 + dx), (-2, 2), (6 + dz, 9 + dz), darker(e.coat));
@@ -199,7 +201,9 @@ impl Grid {
                 }
             }
         }
-        self.ball((3.5 + dx as f32, 0.0, 22.5 + dz as f32), 1.3, WHITE);
+        // the bobble swings with the ride
+        let sway = [0.0f32, 0.6, 0.0, -0.6][frame % 4];
+        self.ball((3.5 + dx as f32 - sway.abs() * 0.5, sway, 22.5 + dz as f32), 1.3, WHITE);
     }
 
     /// Santa, seated at (x, z): big red coat with white trim, belt, beard.
@@ -230,7 +234,13 @@ impl Grid {
 }
 
 impl Model {
-    pub fn build(ride: Ride, e: &Elf) -> Model {
+    /// All animation frames of a ride.
+    pub fn frames(ride: Ride, e: &Elf) -> [Model; FRAMES] {
+        std::array::from_fn(|f| Model::build(ride, e, f))
+    }
+
+    /// One animation frame (0..FRAMES) of a ride.
+    pub fn build(ride: Ride, e: &Elf, frame: usize) -> Model {
         let mut g = Grid::new();
         let (pivot, size, sparks) = match ride {
             Ride::Sleigh => {
@@ -260,14 +270,25 @@ impl Model {
                 g.block((16, 18), (1, 4), (4, 7), BLUE);
                 g.block((16, 18), (2, 2), (4, 8), WHITE);
                 g.block((13, 14), (1, 3), (4, 5), WOOD);
-                g.elf(7, 6, 3, e);
+                g.elf(7, 6, 3, e, frame);
                 (12.0, 1.0, [[0.0, -6.0, 0.0], [0.0, 6.0, 0.0]])
             }
             Ride::Reindeer => {
-                // legs, mid-gallop
-                for (lx, ly, fwd) in [(8, -2, -1.5f32), (8, 2, 1.0), (19, -2, 1.5), (19, 2, -1.0)] {
-                    g.line((lx as f32, ly as f32, 8.0), (lx as f32 + fwd, ly as f32, 1.0), FUR_DARK);
-                    g.set((lx as f32 + fwd).round() as i32, ly, 0, BLACK);
+                // a gallop in four beats: stretched out, passing, gathered
+                // under, passing; (reach forward, hoof lift) per leg, the two
+                // legs of a pair a little out of step
+                let beat: [[(f32, f32); 2]; 4] = [[(4.0, 0.0), (3.0, 1.0)], [(0.5, 2.0), (1.5, 0.0)], [(-3.0, 0.5), (-2.0, 0.0)], [(-0.5, 0.0), (0.5, 2.0)]];
+                let back: [[(f32, f32); 2]; 4] = [[(-4.0, 0.5), (-3.0, 0.0)], [(-0.5, 0.0), (0.5, 2.0)], [(3.0, 0.0), (2.0, 1.0)], [(0.5, 2.0), (-0.5, 0.0)]];
+                for (lx, set) in [(19.0f32, &beat[frame % 4]), (8.0, &back[frame % 4])] {
+                    for (k, ly) in [-2, 2].into_iter().enumerate() {
+                        let (fwd, lift) = set[k];
+                        // a knee halfway down, bent against the swing
+                        let knee = (lx + fwd * 0.4 - fwd.signum() * 0.8, ly as f32, 4.5 + lift * 0.4);
+                        let hoof = (lx + fwd, ly as f32, 1.0 + lift);
+                        g.line((lx, ly as f32, 8.0), knee, FUR_DARK);
+                        g.line(knee, hoof, FUR_DARK);
+                        g.set(hoof.0.round() as i32, ly, (hoof.2 - 1.0).round() as i32, BLACK);
+                    }
                 }
                 g.blob((13.5, 0.0, 9.5), (8.0, 3.2, 3.4), FUR);
                 g.blob((13.5, 0.0, 8.0), (6.0, 2.6, 1.8), FUR_PALE);
@@ -292,7 +313,7 @@ impl Model {
                 g.blob((12.5, 0.0, 12.2), (3.5, 3.6, 0.8), e.paint);
                 g.line((26.0, -1.5, 15.0), (16.0, -3.0, 14.0), BLACK);
                 g.line((26.0, 1.5, 15.0), (16.0, 3.0, 14.0), BLACK);
-                g.elf(12, 12, 2, e);
+                g.elf(12, 12, 2, e, frame);
                 (14.0, 1.0, [[5.0, -2.0, 0.0], [5.0, 2.0, 0.0]])
             }
             Ride::Snowmobile => {
@@ -304,7 +325,7 @@ impl Model {
                 for x in 2..=13 {
                     for z in 0..=3 {
                         for y in -3..=3 {
-                            let tread = (x + z) % 2 == 0 && (z == 0 || x == 2 || x == 13);
+                            let tread = (x + z + frame as i32) % 2 == 0 && (z == 0 || x == 2 || x == 13);
                             g.set(x, y, z, if tread { BLACK } else { GREY_DARK });
                         }
                     }
@@ -320,7 +341,7 @@ impl Model {
                 g.block((16, 17), (-3, 3), (8, 10), GLASS);
                 g.line((15.0, -4.0, 9.0), (15.0, 4.0, 9.0), BLACK);
                 g.block((5, 12), (-3, 3), (6, 6), BLACK);
-                g.elf(9, 7, 4, e);
+                g.elf(9, 7, 4, e, frame);
                 (13.0, 1.0, [[2.0, -3.0, 0.0], [2.0, 3.0, 0.0]])
             }
             Ride::Toboggan => {
@@ -342,30 +363,44 @@ impl Model {
                 g.line((24.0, 0.0, 7.0), (12.0, -3.0, 5.0), (200, 40, 40));
                 g.line((24.0, 0.0, 7.0), (12.0, 3.0, 5.0), (200, 40, 40));
                 g.block((3, 7), (-3, 3), (2, 3), e.paint);
-                g.elf(7, 2, 3, e);
+                g.elf(7, 2, 3, e, frame);
                 (12.0, 1.0, [[1.0, -4.0, 0.0], [1.0, 4.0, 0.0]])
             }
             Ride::Skis => {
-                // two skis with turned-up tips
-                for side in [-2, 2] {
+                // skating: each ski in turn slides forward while the other
+                // pushes back and out, the poles planting with the stride
+                let stride = [2.0f32, 0.0, -2.0, 0.0][frame % 4];
+                for (side, dir) in [(-2i32, 1.0f32), (2, -1.0)] {
+                    let fwd = stride * dir;
+                    // the pushing ski (sliding back) splays out at the tail
+                    let splay = if fwd < 0.0 { side.signum() as f32 * 0.12 } else { 0.0 };
+                    let ski = |x: i32| -> (i32, i32) {
+                        let xf = x as f32 + fwd;
+                        (xf.round() as i32, (side as f32 + (12.0 - xf).max(0.0) * splay).round() as i32)
+                    };
                     for x in 0..=22 {
-                        g.set(x, side, 0, e.paint);
+                        let (xx, yy) = ski(x);
+                        g.set(xx, yy, 0, e.paint);
                     }
-                    g.set(23, side, 1, e.paint);
-                    g.set(24, side, 2, e.paint);
-                    g.set(1, side, 1, darker(e.paint));
+                    let (tx, ty) = ski(23);
+                    g.set(tx, ty, 1, e.paint);
+                    g.set(tx + 1, ty, 2, e.paint);
+                    let (bx, by) = ski(1);
+                    g.set(bx, by, 1, darker(e.paint));
+                    // boot on the ski, leg up to the hip in a crouch
+                    let (fx, fy) = ski(11);
+                    g.block((fx - 1, fx + 1), (fy, fy), (1, 2), BLACK);
+                    let knee = (12.5 + fwd * 0.5, (fy as f32 + side as f32) / 2.0, 6.0);
+                    g.line((fx as f32, fy as f32, 3.0), knee, darker(e.coat));
+                    g.line(knee, (10.0, side as f32, 9.0), darker(e.coat));
                 }
-                // boots and legs bent into a tuck
-                for side in [-2, 2] {
-                    g.block((10, 12), (side, side), (1, 2), BLACK);
-                    g.line((11.0, side as f32, 3.0), (13.0, side as f32, 6.0), darker(e.coat));
-                    g.line((13.0, side as f32, 6.0), (10.0, side as f32, 9.0), darker(e.coat));
-                }
-                g.elf(10, 9, 3, e);
-                // poles tucked back under the arms
+                g.elf(10, 9, 3, e, frame);
+                // poles: planted beside the boots, then swung back
+                let plant = [true, false, true, false][frame % 4];
                 for side in [-4.0f32, 4.0] {
-                    g.line((13.0, side, 10.0), (3.0, side * 1.2, 4.0), GREY);
-                    g.set(3, (side * 1.2) as i32, 3, BLACK);
+                    let tip = if plant { (9.0, side * 1.3, 0.0) } else { (2.0, side * 1.2, 3.0) };
+                    g.line((13.0, side, 10.0), tip, GREY);
+                    g.set(tip.0 as i32, tip.1 as i32, tip.2 as i32 + 1, BLACK);
                 }
                 (11.0, 1.0, [[0.0, -2.0, 0.0], [0.0, 2.0, 0.0]])
             }
@@ -374,7 +409,7 @@ impl Model {
                 for side in [-6, 6] {
                     for x in 1..=22 {
                         for z in 0..=3 {
-                            let tread = (x + z) % 2 == 0 && (z == 0 || z == 3 || x == 1 || x == 22);
+                            let tread = (x + z + frame as i32) % 2 == 0 && (z == 0 || z == 3 || x == 1 || x == 22);
                             g.block((x, x), (side - 1, side + 1), (z, z), if tread { BLACK } else { GREY_DARK });
                         }
                     }
@@ -572,14 +607,21 @@ mod tests {
     #[test]
     fn every_ride_has_a_shell_of_voxels() {
         for r in [Ride::Sleigh, Ride::Reindeer, Ride::Snowmobile, Ride::Toboggan, Ride::Skis, Ride::Plough] {
-            let m = Model::build(r, &BOB);
+            let m = Model::build(r, &BOB, 0);
             assert!(m.voxels.len() > 250, "{r:?}: {}", m.voxels.len());
         }
     }
 
     #[test]
+    fn a_reindeer_gallops_through_different_frames() {
+        let f = Model::frames(Ride::Reindeer, &BOB);
+        let legs = |m: &Model| m.voxels.iter().filter(|v| v.p[2] < 5.0).map(|v| (v.p[0] * 10.0) as i32).sum::<i32>();
+        assert_ne!(legs(&f[0]), legs(&f[2]), "stretched and gathered differ");
+    }
+
+    #[test]
     fn turned_nose_shows_more_of_the_side() {
-        let m = Model::build(Ride::Sleigh, &BOB);
+        let m = Model::build(Ride::Sleigh, &BOB, 0);
         let width = |yaw: f32| {
             let pose = Pose { sx: 0.0, sy: 0.0, px: 1.0, yaw, pitch: 0.4, roll: 0.0, nose: 0.0, fog: 0.0, haze: (0, 0, 0) };
             let xs: Vec<f32> = m.voxels.iter().map(|v| Model::to_cam(v.p, &pose)[0]).collect();

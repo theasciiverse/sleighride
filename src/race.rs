@@ -190,21 +190,17 @@ fn wrap(a: f32) -> f32 {
 }
 
 impl Race {
-    /// A race of the whole roster; with `player`, racer 0 (Bob) is driven by
-    /// the player and starts at the back.
-    pub fn new(track: Track, player: bool, seed: u32) -> Race {
+    /// A race of the whole roster. `player` is the roster index the player
+    /// drives (they start at the back); None races everyone on autopilot.
+    pub fn new(track: Track, player: Option<usize>, seed: u32) -> Race {
         let n = ROSTER.len();
         let mut racers = Vec::new();
         for who in 0..n {
             // grid slot 0 is the front; the player starts last
-            let slot = if player {
-                if who == 0 {
-                    n - 1
-                } else {
-                    who - 1
-                }
-            } else {
-                who
+            let slot = match player {
+                Some(p) if who == p => n - 1,
+                Some(p) if who > p => who - 1,
+                _ => who,
             };
             let back = 10 + slot as isize * 9;
             let i = track.ahead(0, -back);
@@ -213,7 +209,7 @@ impl Race {
             let side = if slot % 2 == 0 { -5.0 } else { 5.0 };
             let (x, y) = (px - ty * side, py + tx * side);
             let kart = Kart::new(x, y, track.heading_at(i), ROSTER[who].stats);
-            let ai = if player && who == 0 { None } else { Some(Ai::new(who, seed)) };
+            let ai = if player == Some(who) { None } else { Some(Ai::new(who, seed)) };
             racers.push(Racer {
                 who,
                 kart,
@@ -741,7 +737,7 @@ mod tests {
     #[test]
     fn a_field_of_autopilots_finishes_three_laps() {
         for (name, make) in crate::track::courses() {
-        let mut r = Race::new(make(), false, 7);
+        let mut r = Race::new(make(), None, 7);
         let mut steps = 0;
         while r.order.len() < r.racers.len() && steps < (500.0 / DT) as usize {
             r.step(Controls::default());
@@ -761,7 +757,7 @@ mod tests {
 
     #[test]
     fn reversing_over_the_line_does_not_count() {
-        let mut r = Race::new(Track::frozen_lake(), true, 1);
+        let mut r = Race::new(Track::frozen_lake(), Some(0), 1);
         let p = r.player().unwrap();
         r.clock = COUNTDOWN;
         for _ in 0..(6.0 / DT) as usize {
@@ -773,7 +769,7 @@ mod tests {
 
     /// The player 20 units behind racer 1 on a straight, everyone else far off.
     fn duel() -> (Race, usize) {
-        let mut r = Race::new(Track::frozen_lake(), true, 1);
+        let mut r = Race::new(Track::frozen_lake(), Some(0), 1);
         r.clock = COUNTDOWN + 1.0;
         let p = r.player().unwrap();
         let i = 300;
@@ -822,7 +818,7 @@ mod tests {
 
     #[test]
     fn item_odds_lean_on_place() {
-        let mut r = Race::new(Track::frozen_lake(), false, 3);
+        let mut r = Race::new(Track::frozen_lake(), None, 3);
         let count = |r: &mut Race, place: u8, item: Item| (0..2000).filter(|_| r.roll_item(place) == item).count();
         assert_eq!(count(&mut r, 1, Item::Tinsel), 0, "no tinsel for the leader");
         assert!(count(&mut r, 6, Item::Peppermint) > count(&mut r, 1, Item::Peppermint) * 2);
@@ -831,7 +827,7 @@ mod tests {
 
     #[test]
     fn santa_catches_the_leader() {
-        let mut r = Race::new(Track::frozen_lake(), false, 5);
+        let mut r = Race::new(Track::frozen_lake(), None, 5);
         let mut caught = false;
         let mut steps = 0;
         while !caught && steps < (300.0 / DT) as usize {

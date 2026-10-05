@@ -26,10 +26,11 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "sleighride [--race] [--course N]\n\n\
+            "sleighride [--race] [--course N] [--as NAME]\n\n\
              Sleighride: kart racing with Santa's runaway helpers. In game, H shows the controls.\n\
              --race                      skip the title screen\n\
              --course N                  1 Frozen Lake, 2 Eggnogg\n\
+             --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper or Nutmeg\n\
              --shot FILE COLS ROWS SECS  write a PPM of the attract race after SECS\n\
              \x20                           (SECS ending in d: then wait for a gold drift)"
         );
@@ -38,13 +39,17 @@ fn main() -> io::Result<()> {
     let start = if args.iter().any(|a| a == "--race") { Phase::Race } else { Phase::Title };
     let n = track::courses().len();
     let course = args.iter().position(|a| a == "--course").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()).map_or(0, |c| c.clamp(1, n) - 1);
+    let pick = args.iter().position(|a| a == "--as").and_then(|i| args.get(i + 1)).and_then(|v| roster::ROSTER.iter().position(|w| w.name.eq_ignore_ascii_case(v))).unwrap_or(0);
     if let Some(i) = args.iter().position(|a| a == "--shot") {
         let get = |k: usize| args.get(i + k).cloned().unwrap_or_default();
         // SECS ending in "d": wait from then on for a slide with gold sparks
         let secs_arg = get(4);
         let wait_drift = secs_arg.ends_with('d');
         let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches('d').parse().unwrap_or(10.0));
-        let mut g = Game::new(start, course);
+        let mut g = Game::new(start, course, pick);
+        if args.iter().any(|a| a == "--select") {
+            g.phase = Phase::Select;
+        }
         g.run_auto(secs);
         while wait_drift && g.race.racers[0].kart.tier() < 2 && g.race.clock < 600.0 {
             g.run_auto(DT);
@@ -61,7 +66,7 @@ fn main() -> io::Result<()> {
     log::info!("start kitty_keyboard={kitty}");
     let mut input = Input::new(kitty);
     input.open_pad();
-    let mut game = Game::new(start, course);
+    let mut game = Game::new(start, course, pick);
     let result = run(&mut terminal, &mut game, &mut input);
     if kitty {
         let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);
