@@ -341,6 +341,8 @@ impl Game {
                 Note::SantaCaught(i) => (Sfx::Whack, if i == me { None } else { Some(pos(i)) }),
                 Note::Finished(i) if i == me => (Sfx::Finish, None),
                 Note::Twister(i) => (Sfx::Launch, if i == me { None } else { Some(pos(i)) }),
+                Note::Penguin(i) => (Sfx::Honk, if i == me { None } else { Some(pos(i)) }),
+                Note::Swipe(i) => (Sfx::Roar, if i == me { None } else { Some(pos(i)) }),
                 _ => continue,
             };
             let v = at.map_or(1.0, |(x, y)| self.near(x, y) * 0.7);
@@ -351,6 +353,7 @@ impl Game {
                 Note::Burst(x, y) => self.confetti(x, y),
                 Note::Blizzard if playing => self.flash = Some(("BLIZZARD!".into(), 1.6, (220, 236, 255))),
                 Note::Twister(i) if i == me && playing => self.flash = Some(("WHOOSH!".into(), 1.2, (220, 236, 255))),
+                Note::Swipe(i) if i == me && playing => self.flash = Some(("SWIPED!".into(), 1.2, (240, 236, 222))),
                 Note::SantaComing if playing => {
                     let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
                     self.flash = Some((text.into(), 2.0, SANTA_COLOUR));

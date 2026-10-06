@@ -73,7 +73,9 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         .iter()
         .map(|t| (t.x, t.y, 4.0))
         .chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5)))
-        .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 3.0)));
+        .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 3.0)))
+        .chain(r.wildlife.penguins.iter().filter(|p| p.gait == crate::wildlife::Gait::Waddling).map(|p| (p.x, p.y, 3.0)))
+        .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 8.0)));
     for (hx, hy, clear) in hazards {
         // steer round dropped presents and holes in the ice ahead
         let ti = r.track.idx(hx, hy);

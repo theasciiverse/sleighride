@@ -11,6 +11,7 @@ mod race;
 mod render;
 mod track;
 mod weather;
+mod wildlife;
 
 use game::{Game, Phase};
 use input::Input;
@@ -58,7 +59,9 @@ fn main() -> io::Result<()> {
         let wait_inlet = secs_arg.ends_with('i');
         // ...or "t": for a snow tornado just ahead
         let wait_twister = secs_arg.ends_with('t');
-        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i', 't']).parse().unwrap_or(10.0));
+        // ...or "p": for penguins on the road just ahead
+        let wait_penguins = secs_arg.ends_with('p');
+        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i', 't', 'p']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
@@ -88,6 +91,14 @@ fn main() -> io::Result<()> {
             let (dx, dy) = (t.x - k.x, t.y - k.y);
             let ahead = dx * k.heading.cos() + dy * k.heading.sin();
             ahead > 15.0 && ahead < 35.0 && (dx * -k.heading.sin() + dy * k.heading.cos()).abs() < 12.0
+        }) {
+            g.run_auto(DT);
+        }
+        while wait_penguins && g.race.clock < 600.0 && !g.race.wildlife.penguins.iter().any(|p| {
+            let k = &g.race.racers[me].kart;
+            let (dx, dy) = (p.x - k.x, p.y - k.y);
+            let ahead = dx * k.heading.cos() + dy * k.heading.sin();
+            p.gait == wildlife::Gait::Waddling && ahead > 18.0 && ahead < 40.0 && (dx * -k.heading.sin() + dy * k.heading.cos()).abs() < 14.0
         }) {
             g.run_auto(DT);
         }

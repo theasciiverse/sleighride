@@ -531,6 +531,67 @@ impl Model {
         Model::finish(g, 7.0, 1.0, [[0.0, 0.0, 0.0]; 2])
     }
 
+    /// A penguin: black back, white front, orange beak and feet.
+    pub fn penguin() -> Model {
+        let mut g = Grid::new();
+        g.blob((4.0, 0.0, 4.5), (2.6, 2.6, 4.0), BLACK);
+        g.blob((5.2, 0.0, 4.2), (1.6, 2.0, 3.3), WHITE);
+        g.ball((4.3, 0.0, 9.0), 1.9, BLACK);
+        g.blob((5.4, 0.0, 8.6), (0.8, 1.2, 1.0), WHITE);
+        g.set(6, 0, 9, (240, 150, 40));
+        g.set(7, 0, 9, (240, 150, 40));
+        g.set(5, -1, 9, (250, 250, 250));
+        g.set(5, 1, 9, (250, 250, 250));
+        for side in [-1, 1] {
+            g.line((4.0, side as f32 * 2.8, 6.5), (3.6, side as f32 * 3.4, 3.0), (30, 26, 40));
+            g.block((5, 6), (side, side), (0, 0), (240, 150, 40));
+        }
+        Model::finish(g, 4.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
+    /// A polar bear on all fours (four walk frames), or reared up.
+    pub fn bear(frame: usize, reared: bool) -> Model {
+        let mut g = Grid::new();
+        const FUR: Rgb = (240, 236, 222);
+        const SHADE: Rgb = (214, 206, 190);
+        if reared {
+            // up on the hind legs, paws out to swipe
+            for side in [-2.5f32, 2.5] {
+                g.line((10.0, side, 0.0), (10.0, side, 6.0), SHADE);
+            }
+            g.blob((10.0, 0.0, 12.0), (3.6, 4.0, 7.0), FUR);
+            g.ball((11.0, 0.0, 20.5), 2.8, FUR);
+            g.blob((13.5, 0.0, 20.0), (1.4, 1.2, 1.1), FUR);
+            g.set(15, 0, 20, BLACK);
+            g.set(13, -1, 22, BLACK);
+            g.set(13, 1, 22, BLACK);
+            g.ball((10.0, -2.2, 23.0), 0.9, FUR);
+            g.ball((10.0, 2.2, 23.0), 0.9, FUR);
+            for side in [-1.0f32, 1.0] {
+                g.line((10.0, side * 3.5, 16.0), (15.0, side * 6.0, 19.0), FUR);
+                g.ball((15.5, side * 6.2, 19.0), 1.2, SHADE);
+            }
+        } else {
+            // walking: legs in a slow four-beat
+            let swing = [[1.5f32, -1.5, -1.5, 1.5], [0.5, -0.5, 0.5, -0.5], [-1.5, 1.5, 1.5, -1.5], [-0.5, 0.5, -0.5, 0.5]][frame % 4];
+            for (k, (lx, ly)) in [(6.0f32, -2.5f32), (6.0, 2.5), (17.0, -2.5), (17.0, 2.5)].into_iter().enumerate() {
+                g.line((lx, ly, 6.0), (lx + swing[k], ly, 0.0), SHADE);
+                g.ball((lx + swing[k], ly, 0.6), 0.9, SHADE);
+            }
+            g.blob((11.5, 0.0, 7.5), (8.0, 4.0, 3.8), FUR);
+            g.blob((19.5, 0.0, 9.0), (2.4, 2.2, 2.2), FUR);
+            g.ball((22.0, 0.0, 9.5), 2.4, FUR);
+            g.blob((24.3, 0.0, 9.0), (1.3, 1.1, 1.0), FUR);
+            g.set(26, 0, 9, BLACK);
+            g.set(23, -1, 11, BLACK);
+            g.set(23, 1, 11, BLACK);
+            g.ball((21.5, -2.0, 11.8), 0.8, FUR);
+            g.ball((21.5, 2.0, 11.8), 0.8, FUR);
+            g.ball((3.5, 0.0, 8.5), 1.0, FUR);
+        }
+        Model::finish(g, 12.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
     /// A wrapped present: a box with a ribbon cross and a bow on top.
     pub fn gift(paper: Rgb, ribbon: Rgb) -> Model {
         let mut g = Grid::new();

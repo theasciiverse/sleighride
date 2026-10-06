@@ -170,6 +170,10 @@ pub enum Note {
     Blizzard,
     /// Thrown by a snow tornado.
     Twister(usize),
+    /// Bowled a penguin over.
+    Penguin(usize),
+    /// Swiped by the polar bear.
+    Swipe(usize),
     Finished(usize),
 }
 
@@ -183,6 +187,7 @@ pub struct Race {
     pub boxes: Vec<ItemBox>,
     pub santa: Santa,
     pub weather: crate::weather::Weather,
+    pub wildlife: crate::wildlife::Wildlife,
     pub notes: Vec<Note>,
     /// Finishing order, racer indices.
     pub order: Vec<usize>,
@@ -264,8 +269,10 @@ impl Race {
         let mut santa = Kart::new(0.0, 0.0, 0.0, PLOUGH);
         santa.plough = true;
         let weather = crate::weather::Weather::new(&track, seed);
+        let wildlife = crate::wildlife::Wildlife::new(&track);
         Race {
             weather,
+            wildlife,
             track,
             racers,
             clock: 0.0,
@@ -394,6 +401,15 @@ impl Race {
         if self.weather.step(DT, &self.track) {
             self.notes.push(Note::Blizzard);
             log::info!("a blizzard blows in");
+        }
+        {
+            let mut karts: Vec<&mut Kart> = self.racers.iter_mut().map(|r| &mut r.kart).collect();
+            for e in self.wildlife.step(DT, &mut karts) {
+                self.notes.push(match e {
+                    crate::wildlife::Wild::Bowled(i) => Note::Penguin(i),
+                    crate::wildlife::Wild::Swiped(i) => Note::Swipe(i),
+                });
+            }
         }
         let (px, py) = self.weather.push(DT);
         let twisters = self.weather.twisters.clone();

@@ -121,6 +121,8 @@ pub struct Track {
     /// Weather: whether blizzards blow here, and how many snow tornadoes.
     pub blizzards: bool,
     pub twisters: usize,
+    /// Where on the lap penguins cross the road (a polar bear lives there).
+    pub penguins: Option<f32>,
     /// The relief it was built from (read by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub relief: &'static Relief,
@@ -556,6 +558,7 @@ impl Track {
         let mut t = Track::build("Frozen Lake", FROZEN_LAKE, 14.0, FROZEN, &FROZEN_RELIEF);
         t.blizzards = true;
         t.twisters = 1;
+        t.penguins = Some(0.23);
         t.add_ice(&[(0.36, -5.0, 6.0), (0.64, 4.0, 7.0)]);
         t
     }
@@ -577,6 +580,7 @@ impl Track {
         let mut t = Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF);
         t.blizzards = true;
         t.twisters = 1;
+        t.penguins = Some(0.83);
         t
     }
 
@@ -637,7 +641,7 @@ impl Track {
         let ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), blizzards: false, twisters: 0, relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), blizzards: false, twisters: 0, penguins: None, relief };
         for &(f, side, r) in relief.holes {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];

@@ -52,9 +52,11 @@ pub enum Sfx {
     Finish,
     Click,
     Splash,
+    Honk,
+    Roar,
 }
 
-const ALL_SFX: [Sfx; 29] = [
+const ALL_SFX: [Sfx; 31] = [
     Sfx::Beep,
     Sfx::Go,
     Sfx::Hop,
@@ -84,6 +86,8 @@ const ALL_SFX: [Sfx; 29] = [
     Sfx::Finish,
     Sfx::Click,
     Sfx::Splash,
+    Sfx::Honk,
+    Sfx::Roar,
 ];
 
 /// What a ride sounds like.
@@ -359,6 +363,17 @@ fn render_sfx(s: Sfx) -> Vec<f32> {
             let plunge = n.next() * (-t * 9.0).exp() * 0.45;
             let bub = (TAU * (500.0 + 300.0 * (t * 37.0).sin()) * t).sin() * 0.12 * ((t * 23.0).fract() < 0.3) as i32 as f32 * (1.0 - t / 0.9);
             plunge + bub
+        }),
+        Sfx::Honk => synth(0.35, |t, _| {
+            // an indignant penguin: two quick nasal squawks
+            let on = t < 0.12 || (t > 0.18 && t < 0.32);
+            let f = if t < 0.15 { 620.0 } else { 540.0 };
+            (saw(t * f) * 0.6 + square(t * f * 0.5) * 0.4) * 0.18 * on as i32 as f32
+        }),
+        Sfx::Roar => synth(0.9, |t, n| {
+            let env = (t / 0.08).min(1.0) * (1.0 - t / 0.9);
+            let growl = saw(t * (95.0 - 30.0 * t)) * (0.6 + 0.4 * (TAU * 22.0 * t).sin());
+            (growl * 0.3 + n.next() * 0.18) * env
         }),
         Sfx::Finish => tune(&[(72.0, 0.12), (76.0, 0.12), (79.0, 0.12), (84.0, 0.12), (79.0, 0.12), (84.0, 0.5)], 0.25, square),
     }

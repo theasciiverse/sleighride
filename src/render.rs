@@ -547,6 +547,17 @@ fn models() -> &'static Vec<[Model; FRAMES]> {
 }
 const PLOUGH_MODEL: usize = ROSTER.len();
 
+struct Critters {
+    penguin: Model,
+    bear: [Model; 4],
+    bear_reared: Model,
+}
+
+fn critters() -> &'static Critters {
+    static C: OnceLock<Critters> = OnceLock::new();
+    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true) })
+}
+
 fn gift() -> &'static Model {
     static GIFT: OnceLock<Model> = OnceLock::new();
     GIFT.get_or_init(|| Model::gift((206, 36, 52), (250, 214, 70)))
@@ -839,6 +850,8 @@ enum Thing {
     Flyer(usize),
     Pole,
     Twister(usize),
+    Penguin(usize),
+    Bear,
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
@@ -894,6 +907,14 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for t in &r.traps {
         things.push((depth(t.x, t.y), t.x, t.y, Thing::Trap));
     }
+    for (i, p) in r.wildlife.penguins.iter().enumerate() {
+        if p.gait != crate::wildlife::Gait::Gone {
+            things.push((depth(p.x, p.y), p.x, p.y, Thing::Penguin(i)));
+        }
+    }
+    if let Some(b) = &r.wildlife.bear {
+        things.push((depth(b.x, b.y), b.x, b.y, Thing::Bear));
+    }
     for (i, tw) in r.weather.twisters.iter().enumerate() {
         things.push((depth(tw.x, tw.y), tw.x, tw.y, Thing::Twister(i)));
     }
@@ -908,7 +929,9 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for (i, f) in s.birds.flock.iter().enumerate() {
         things.push((depth(f.x, f.y), f.x, f.y, Thing::Flyer(i)));
     }
-    things.retain(|t| t.0 > 1.0 && t.0 < v.far * 1.4);
+    // scenery right up against the camera only looks huge and odd; racers
+    // stay, as kart racers draw them
+    things.retain(|t| t.0 < v.far * 1.4 && (t.0 > 5.0 || matches!(t.3, Thing::Racer(_) | Thing::Santa) && t.0 > 1.0));
     things.sort_by(|a, b| b.0.total_cmp(&a.0));
     let tr = &r.track;
     for (z, x, y, thing) in things {
@@ -1001,6 +1024,30 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                             cv.blend(px as i32 + 1, py as i32, c, 0.6 * (1.0 - fog));
                         }
                     }
+                }
+            }
+            Thing::Penguin(i) => {
+                let p = &r.wildlife.penguins[i];
+                if let Some((mut pose, sc)) = pose_at(&v, &s.cam, x, y, ground, p.heading, 1.0, haze) {
+                    shadow(cv, pose.sx, pose.sy, sc, 1.0);
+                    match p.gait {
+                        crate::wildlife::Gait::Sliding(t) => {
+                            // flat on its belly, spinning a little
+                            pose.nose = -1.45;
+                            pose.yaw += t * 3.0;
+                        }
+                        _ => pose.roll = (p.step * std::f32::consts::TAU).sin() * 0.25,
+                    }
+                    critters().penguin.draw(cv, &pose);
+                }
+            }
+            Thing::Bear => {
+                let b = r.wildlife.bear.as_ref().unwrap();
+                let c = critters();
+                let m = if b.rear > 0.0 { &c.bear_reared } else { &c.bear[(b.step * 4.0) as usize % 4] };
+                if let Some((pose, sc)) = pose_at(&v, &s.cam, x, y, ground, b.heading, 1.0, haze) {
+                    shadow(cv, pose.sx, pose.sy, sc, 4.0);
+                    m.draw(cv, &pose);
                 }
             }
             Thing::Pole => {
