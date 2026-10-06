@@ -16,11 +16,19 @@ Repo: private, github.com/theasciiverse/sleighride (branch `main`).
 
 ## Premise
 
-All of Santa's helpers have taken everything with runners for a joyride:
+Christmas morning: every present delivered, Santa asleep in his armchair
+by the workshop fire. All of Santa's helpers have taken everything with
+runners for a joyride:
 the big sleigh, the reindeer, the snowmobiles, toboggans and skis. Bob (the
 elf in the big sleigh, the player) races the others. Santa is not happy: from
 lap 2 he comes after them in the one thing they left behind, the
-snowplough, and hunts whoever is leading.
+snowplough, and hunts whoever is leading: he has a list, he is checking
+it twice, and whoever is out in front is clearly the ringleader.
+
+The story is four pages (`game::STORY`) shown once per run between the
+title and the racer choice. Santa's lines: "SANTA'S AWAKE!" on his first
+appearance, "SANTA'S BACK!" after, "NAUGHTY LIST!" when he catches you,
+and a verdict on the results card by place and catches (`santa_says`).
 
 No copyrighted characters: generic winter-fantasy archetypes and public
 domain folklore only (no Rudolph: our reindeer have black noses).
@@ -42,7 +50,8 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses: **Frozen Lake** (aurora night, ice cracks, two ice patches) and
+- Courses: **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
+  and two kickers, see below) and
   **Eggnogg** (sunset, a creamy eggnog lake flecked with nutmeg, gold kerbs,
   four ice patches, twistier)
 - Racers (`roster.rs`): Bob (sleigh, player), Holly and Juniper (reindeer),
@@ -50,7 +59,9 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   handling (top speed, accel, turn, grip, drift charge, weight)
 - Rivals keep their own lines, drift, take rocket starts give or take their
   nerves, steer round dropped presents and pass slower racers, use items
-  sensibly, and close up a little when behind the player / ease off ahead
+  sensibly, and close up a little when behind the player (up to 4%) / ease
+  off ahead (up to 3%); softened 2026-10-06 after a six-way photo finish,
+  now the field finishes 2 to 6 s apart
 - Places 1st to 6th, standings, minimap markers, results card with the
   whole field
 - Bumps: racers that touch are pushed apart; only closing on each other
@@ -75,12 +86,28 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   tiers (frost blue, gold, aurora) released as boosts, deep powder slows you
   and stops sparks, ice has a tenth of the grip, snowbanks and pines you
   glance off (a hard hit on a pine spins you out)
+- Hills and jumps (2026-10-06): a course has a `Relief` (height keys round
+  the lap, kickers, lake level); `ground_heights` turns it into a height
+  per cell (road flat across, shoulders rising to the banks, down to the
+  lake, smoothed off the road). Frozen Lake climbs a ridge up the west
+  shore (+26) to a kicker on the crest, rolls over the east side, and a
+  second kicker after the hairpin drops you to the lake shore (-9); the
+  lake lies at -26. Eggnogg is flat for now
+- Physics: slopes pull on speed; where the ground falls away faster than
+  gravity (50 u/s^2) can follow, you take off; no grip, gas or drift
+  charge in the air; tap drift in the air for a trick (a barrel roll),
+  land it for a boost, land mid-roll and stumble
+- Rendering: the ground is drawn Comanche-style (voxel space): per column,
+  front to back, each sample projected by its height, slopes lit by a low
+  sun, a depth per pixel so pines, racers and items hide behind hills. The
+  view tips with the road ahead (a horizon shear) so climbs and crests read;
+  racers tilt with the slope and in flight
 - Everyone is a voxel model drawn at its true angle every frame
 - 3-2-1-GO countdown with a rocket start, three laps, lap times, wrong-way,
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 21 tests, including a full six-racer race on each course (winner to last
+- 24 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -139,6 +166,7 @@ RUST_LOG=sleighride=debug cargo run --release 2>sleighride.log
 cargo run --release -- --shot out.ppm 160 45 12    # screenshot of the title screen
 cargo run --release -- --race --shot out.ppm 160 45 30   # a race, everyone on autopilot
 cargo run --release -- --shot out.ppm 160 45 5d    # ... at the first gold-spark drift after 5 s
+cargo run --release -- --race --shot out.ppm 160 45 5a   # ... at the first jump after 5 s
 ```
 
 Use `RUST_LOG=sleighride=debug` rather than plain `debug`: gilrs is chatty.
@@ -189,6 +217,8 @@ A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
   tour of courses
 - More courses beyond Frozen Lake and Eggnogg; a track format instead of
   control points in code
+- Hills for Eggnogg; more jumps; a "Slayride" name for Hard or a mode where
+  Santa really means business
 
 ## Next steps
 

@@ -3,10 +3,15 @@
 //! the ratatui buffer; the HUD goes on top as ordinary cells, and the
 //! minimap in Braille.
 //!
-//! The ground is "Mode 7": the track is a flat picture seen from a camera
-//! hanging behind and above the sleigh. Each screen row below the horizon
-//! is one distance into the scene, so drawing is one texture lookup per
-//! pixel. Pines and snow are billboards, scaled by their distance.
+//! The ground is a height field drawn the way Comanche (NovaLogic, 1992)
+//! drew its terrain: for each screen column, step out from the camera,
+//! project each sample of ground by its height, and draw the part of the
+//! column it shows that nothing nearer has covered. On flat ground that is
+//! exactly the old Mode 7 floor; with hills you get crests, dips and things
+//! hiding behind them. Each pixel's ground colour comes from the track's
+//! lookup map (road, kerb, powder, lake...) rather than a stored texture,
+//! and each pixel remembers its depth so billboards and racers are hidden
+//! behind hills. Pines and snow are billboards, scaled by their distance.
 
 use crate::kart::Kart;
 use crate::model::{Model, Pose, Ride, FRAMES, VOX};
@@ -31,24 +36,37 @@ pub struct Canvas {
     pub w: usize,
     pub h: usize,
     pub px: Vec<Rgb>,
+    /// Depth of the ground at each pixel (infinite for sky and haze).
+    depth: Vec<f32>,
+    /// Depth of whatever is being drawn now: pixels where the ground is
+    /// nearer are left alone. Minus infinity draws over everything.
+    pub clip: f32,
 }
 
 impl Canvas {
     pub fn new(cols: u16, rows: u16) -> Canvas {
         let (w, h) = (cols as usize, rows as usize * 2);
-        Canvas { w, h, px: vec![(0, 0, 0); w * h] }
+        Canvas { w, h, px: vec![(0, 0, 0); w * h], depth: vec![f32::INFINITY; w * h], clip: f32::NEG_INFINITY }
+    }
+
+    fn at(&self, x: i32, y: i32) -> Option<usize> {
+        if x >= 0 && y >= 0 && (x as usize) < self.w && (y as usize) < self.h {
+            let i = y as usize * self.w + x as usize;
+            (self.clip < self.depth[i]).then_some(i)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn put(&mut self, x: i32, y: i32, c: Rgb) {
-        if x >= 0 && y >= 0 && (x as usize) < self.w && (y as usize) < self.h {
-            self.px[y as usize * self.w + x as usize] = c;
+        if let Some(i) = self.at(x, y) {
+            self.px[i] = c;
         }
     }
 
     pub(crate) fn blend(&mut self, x: i32, y: i32, c: Rgb, k: f32) {
-        if x >= 0 && y >= 0 && (x as usize) < self.w && (y as usize) < self.h {
-            let p = &mut self.px[y as usize * self.w + x as usize];
-            *p = mix(*p, c, k);
+        if let Some(i) = self.at(x, y) {
+            self.px[i] = mix(self.px[i], c, k);
         }
     }
 
@@ -109,21 +127,36 @@ pub struct Camera {
     pub x: f32,
     pub y: f32,
     pub angle: f32,
+    /// The height the camera hangs above (the followed racer's, eased).
+    pub z: f32,
+    /// How far the view tips up (positive) or down to follow the slope.
+    pub pitch: f32,
 }
 
 impl Camera {
     pub fn behind(k: &Kart) -> Camera {
-        Camera { x: k.x - k.heading.cos() * CAM_BACK, y: k.y - k.heading.sin() * CAM_BACK, angle: k.heading }
+        Camera { x: k.x - k.heading.cos() * CAM_BACK, y: k.y - k.heading.sin() * CAM_BACK, angle: k.heading, z: k.z, pitch: 0.0 }
     }
 
     /// Ease toward sitting behind the sleigh, looking between where the nose
-    /// points and where it is going.
-    pub fn follow(&mut self, k: &Kart, dt: f32) {
+    /// points and where it is going, tipped to the lie of the road ahead.
+    pub fn follow(&mut self, k: &Kart, track: &Track, dt: f32) {
+        let (c, s) = (self.angle.cos(), self.angle.sin());
+        let ahead = track.height(k.x + c * 22.0, k.y + s * 22.0);
+        let behind = track.height(k.x - c * 6.0, k.y - s * 6.0);
+        let slope = ((ahead - behind) / 28.0).clamp(-0.5, 0.5);
+        if !k.air {
+            self.pitch += (slope.atan() - self.pitch) * (4.0 * dt).min(1.0);
+        }
         let mut d = (k.heading + wrap(k.travel - k.heading) * 0.5) - self.angle;
         d = wrap(d);
         self.angle = wrap(self.angle + d * (5.0 * dt).min(1.0));
         self.x = k.x - self.angle.cos() * CAM_BACK;
         self.y = k.y - self.angle.sin() * CAM_BACK;
+        // follow the ground closely, a jump more lazily so the sleigh rises
+        // on screen
+        let rate = if k.air { 2.5 } else { 9.0 };
+        self.z += (k.z - self.z) * (rate * dt).min(1.0);
     }
 }
 
@@ -145,8 +178,10 @@ pub struct View {
     hz: f32,
     /// Focal length in pixels (pixels are square).
     f: f32,
-    /// Camera height.
+    /// Camera height above the ground it follows.
     cam_h: f32,
+    /// Eye height in the world, set per frame.
+    eye: f32,
 }
 
 impl View {
@@ -154,22 +189,23 @@ impl View {
         let (w, h) = (cv.w as f32, cv.h as f32);
         let f = (w * 0.62).min(h * 1.7);
         let hz = (h * 0.34).round();
-        // the sleigh's runners sit near the bottom of the screen
-        let ground = h * 0.93 - hz;
-        View { w, hz, f, cam_h: ground * CAM_BACK / f }
+        // the sleigh's runners sit near the bottom of the screen, with room
+        // below for the view to tip on a climb
+        let ground = h * 0.86 - hz;
+        View { w, hz, f, cam_h: ground * CAM_BACK / f, eye: 0.0 }
     }
 
-    /// Screen position of a ground point, its depth and pixels per unit.
-    fn project(&self, cam: &Camera, x: f32, y: f32) -> Option<(f32, f32, f32)> {
+    /// Screen position of a point at height `z`, and pixels per unit.
+    fn project(&self, cam: &Camera, x: f32, y: f32, z: f32) -> Option<(f32, f32, f32)> {
         let (rx, ry) = (x - cam.x, y - cam.y);
         let (c, s) = (cam.angle.cos(), cam.angle.sin());
-        let z = rx * c + ry * s;
-        if z < 1.0 {
+        let depth = rx * c + ry * s;
+        if depth < 1.0 {
             return None;
         }
         let side = rx * -s + ry * c;
-        let scale = self.f / z;
-        Some((self.w / 2.0 + side * scale, self.hz + self.cam_h * scale, scale))
+        let scale = self.f / depth;
+        Some((self.w / 2.0 + side * scale, self.hz + (self.eye - z) * scale, scale))
     }
 }
 
@@ -283,27 +319,55 @@ fn lake(th: &Theme, x: f32, y: f32) -> Rgb {
     c
 }
 
-fn ground(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track) {
+/// The ground, column by column, front to back.
+fn terrain(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track) {
     let (c, s) = (cam.angle.cos(), cam.angle.sin());
     let haze = track.theme.haze;
-    let start = v.hz as usize;
-    for y in start..cv.h {
-        let z = v.cam_h * v.f / (y as f32 + 0.5 - v.hz);
-        let fog = (z / FAR).min(1.0).powf(1.6);
-        if z > FAR * 1.2 {
-            for x in 0..cv.w {
-                cv.px[y * cv.w + x] = haze;
-            }
-            continue;
-        }
-        let per = z / v.f;
-        for x in 0..cv.w {
-            let side = (x as f32 + 0.5 - v.w / 2.0) * per;
-            let wx = cam.x + c * z - s * side;
-            let wy = cam.y + s * z + c * side;
-            cv.px[y * cv.w + x] = mix(ground_colour(track, wx, wy), haze, fog);
+    let (w, h) = (cv.w, cv.h);
+    for y in (v.hz.max(0.0) as usize)..h {
+        for x in 0..w {
+            cv.px[y * w + x] = haze;
         }
     }
+    // the sun, low in the south-west: slopes facing it are lit
+    let (lx, ly, lz) = (-0.45f32, 0.55, 0.7);
+    for col in 0..w {
+        let a = (col as f32 + 0.5 - v.w / 2.0) / v.f;
+        let mut ybuf = h as f32;
+        let mut t = 2.0f32;
+        let mut prev: Option<(f32, f32, f32, f32)> = None;
+        while t < FAR * 1.2 && ybuf > 0.0 {
+            let (wx, wy) = (cam.x + c * t - s * a * t, cam.y + s * t + c * a * t);
+            let ht = track.height(wx, wy);
+            let sy = v.hz + (v.eye - ht) * v.f / t;
+            // light by the slope here
+            let (gx, gy) = (track.height(wx + 1.0, wy) - track.height(wx - 1.0, wy), track.height(wx, wy + 1.0) - track.height(wx, wy - 1.0));
+            let lum = ((-gx * 0.5 * lx - gy * 0.5 * ly + lz) / ((gx * gx + gy * gy) * 0.25 + 1.0).sqrt() / lz).clamp(0.55, 1.3);
+            if sy < ybuf {
+                let (p0, p1) = (sy.ceil().max(0.0) as i32, (ybuf.ceil() as i32).min(h as i32));
+                let (qx, qy, qt, ql) = prev.unwrap_or((wx, wy, t, lum));
+                for py in p0..p1 {
+                    // between this sample (far) and the last one (near)
+                    let k = ((py as f32 + 0.5 - sy) / (ybuf - sy).max(1e-3)).clamp(0.0, 1.0);
+                    let (px, pz, pt, pl) = (wx + (qx - wx) * k, wy + (qy - wy) * k, t + (qt - t) * k, lum + (ql - lum) * k);
+                    let base = ground_colour(track, px, pz);
+                    let lit = (scale_rgb(base, pl), pt);
+                    let fog = (lit.1 / FAR).min(1.0).powf(1.6);
+                    let i = py as usize * w + col;
+                    cv.px[i] = mix(lit.0, haze, fog);
+                    cv.depth[i] = pt;
+                }
+                ybuf = sy;
+            }
+            prev = Some((wx, wy, t, lum));
+            t += 0.3 + t * 0.012;
+        }
+    }
+}
+
+fn scale_rgb(c: Rgb, k: f32) -> Rgb {
+    let f = |x: u8| (x as f32 * k).min(255.0) as u8;
+    (f(c.0), f(c.1), f(c.2))
 }
 
 fn pine(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, fog: f32, haze: Rgb) {
@@ -352,10 +416,11 @@ pub struct Particle {
     pub colour: Rgb,
 }
 
-fn particles(cv: &mut Canvas, v: &View, cam: &Camera, ps: &[Particle]) {
+fn particles(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track, ps: &[Particle]) {
     for p in ps {
-        if let Some((sx, sy, scale)) = v.project(cam, p.x, p.y) {
-            let y = sy - p.z * scale;
+        if let Some((sx, sy, scale)) = v.project(cam, p.x, p.y, track.height(p.x, p.y) + p.z) {
+            cv.clip = v.f / scale - 0.5;
+            let y = sy;
             let r = (scale * 0.25).clamp(0.5, 2.0);
             let k = p.life.min(1.0);
             for dy in 0..r.ceil() as i32 {
@@ -365,6 +430,7 @@ fn particles(cv: &mut Canvas, v: &View, cam: &Camera, ps: &[Particle]) {
             }
         }
     }
+    cv.clip = f32::NEG_INFINITY;
 }
 
 /// Spark colour for a drift tier; the third tier cycles like the aurora.
@@ -429,9 +495,9 @@ fn shadow(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, w: f32) {
     }
 }
 
-/// Pose for something on the ground at (x, y), heading `heading`.
-fn pose_at(v: &View, cam: &Camera, x: f32, y: f32, heading: f32, size: f32, haze: Rgb) -> Option<(Pose, f32)> {
-    let (sx, sy, scale) = v.project(cam, x, y)?;
+/// Pose for something standing at (x, y) at height `z`, heading `heading`.
+fn pose_at(v: &View, cam: &Camera, x: f32, y: f32, z: f32, heading: f32, size: f32, haze: Rgb) -> Option<(Pose, f32)> {
+    let (sx, sy, scale) = v.project(cam, x, y, z)?;
     let z = v.f / scale;
     let bearing = (y - cam.y).atan2(x - cam.x);
     Some((
@@ -452,19 +518,25 @@ fn pose_at(v: &View, cam: &Camera, x: f32, y: f32, heading: f32, size: f32, haze
     ))
 }
 
-fn racer(cv: &mut Canvas, v: &View, cam: &Camera, r: &Racer, haze: Rgb, time: f32) {
+fn racer(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track, r: &Racer, haze: Rgb, time: f32) {
     let k = &r.kart;
     let (frame, rise) = frame_of(ROSTER[r.who].ride, k.odo);
     let model = &models()[r.who][frame];
-    let Some((mut pose, scale)) = pose_at(v, cam, k.x, k.y, k.heading, model.size, haze) else { return };
-    shadow(cv, pose.sx, pose.sy, scale, 3.4);
+    let ground = track.height(k.x, k.y);
+    if let Some((sx, sy, scale)) = v.project(cam, k.x, k.y, ground) {
+        // the shadow stays on the ground, shrinking as you fly
+        shadow(cv, sx, sy, scale, 3.4 / (1.0 + (k.z - ground).max(0.0) * 0.15));
+    }
+    let Some((mut pose, scale)) = pose_at(v, cam, k.x, k.y, k.z, k.heading, model.size, haze) else { return };
     let hop = if k.hop > 0.0 { (k.hop / 0.2 * std::f32::consts::PI).sin().max(0.0) } else { 0.0 };
     pose.sy -= hop * 0.6 * scale + rise * pose.px;
     // swung further into a drift the way kart racers show it, and right
     // round in a spin-out
     pose.yaw += r.lean * 0.45 + k.spin;
-    pose.roll = r.lean * 0.16;
-    pose.nose = hop * 0.12;
+    pose.roll = r.lean * 0.16 + k.flip * std::f32::consts::TAU;
+    // tilt with the slope, or with the flight
+    let pitch = if k.air { (k.vz / k.speed.abs().max(10.0)).atan() * 0.7 } else { track.slope(k.x, k.y, k.heading).atan() };
+    pose.nose = hop * 0.12 + pitch;
     // mistletoe on a stick, hung out over the front
     if r.mistletoe > 0.0 {
         let base = model.point([12.0, 0.0, 9.0], &pose);
@@ -602,8 +674,14 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     let r = s.race;
     let th = &r.track.theme;
     let haze = th.haze;
+    let mut v = v;
+    v.eye = (s.cam.z + v.cam_h).max(r.track.height(s.cam.x, s.cam.y) + 1.5);
+    // tipping the view up a slope lowers the horizon, and over a crest
+    // raises it (a shear, as Comanche did, rather than a true rotation)
+    v.hz += (v.f * s.cam.pitch.tan() * 0.7).clamp(-(cv.h as f32) * 0.12, cv.h as f32 * 0.12);
+    let v = v;
     sky(cv, &v, &s.cam, th, s.time);
-    ground(cv, &v, &s.cam, &r.track);
+    terrain(cv, &v, &s.cam, &r.track);
     // everything standing in the world, drawn far to near
     let mut things: Vec<(f32, f32, f32, Thing)> = Vec::new();
     let depth = |x: f32, y: f32| (x - s.cam.x) * s.cam.angle.cos() + (y - s.cam.y) * s.cam.angle.sin();
@@ -636,9 +714,13 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     }
     things.retain(|t| t.0 > 1.0 && t.0 < FAR);
     things.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let tr = &r.track;
     for (z, x, y, thing) in things {
-        let Some((sx, sy, scale)) = v.project(&s.cam, x, y) else { continue };
+        let ground = tr.height(x, y);
+        let Some((sx, sy, scale)) = v.project(&s.cam, x, y, ground) else { continue };
         let fog = (z / FAR).min(1.0).powf(1.6);
+        // hidden wherever the ground in front is nearer
+        cv.clip = z - 1.5;
         match thing {
             Thing::Tree(size) => {
                 let w = TREE_H * size * scale * 0.6;
@@ -646,11 +728,11 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                     pine(cv, sx, sy, scale, size, fog, haze);
                 }
             }
-            Thing::Racer(i) => racer(cv, &v, &s.cam, &r.racers[i], haze, s.time),
+            Thing::Racer(i) => racer(cv, &v, &s.cam, tr, &r.racers[i], haze, s.time),
             Thing::Santa => {
                 let k = &r.santa.kart;
                 let m = &models()[PLOUGH_MODEL][frame_of(Ride::Plough, k.odo).0];
-                if let Some((pose, scale)) = pose_at(&v, &s.cam, k.x, k.y, k.heading, m.size, haze) {
+                if let Some((pose, scale)) = pose_at(&v, &s.cam, k.x, k.y, k.z, k.heading, m.size, haze) {
                     shadow(cv, pose.sx, pose.sy, scale, 6.0);
                     m.draw(cv, &pose);
                     // the beacon flashes
@@ -663,7 +745,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
             Thing::Box => {
                 let m = gift();
                 let spin = s.time * 2.0 + x * 0.1;
-                if let Some((mut pose, scale)) = pose_at(&v, &s.cam, x, y, spin, 1.0, haze) {
+                if let Some((mut pose, scale)) = pose_at(&v, &s.cam, x, y, ground, spin, 1.0, haze) {
                     shadow(cv, pose.sx, pose.sy, scale, 1.6);
                     pose.sy -= (1.2 + (s.time * 3.0 + x).sin() * 0.3) * scale;
                     m.draw(cv, &pose);
@@ -687,7 +769,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                     }
                     ShotKind::Present => {
                         let m = gift();
-                        if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, s.time * 9.0, 0.7, haze) {
+                        if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, ground, s.time * 9.0, 0.7, haze) {
                             shadow(cv, pose.sx, pose.sy, scale, 1.0);
                             pose.sy -= lift;
                             pose.nose = s.time * 7.0;
@@ -699,14 +781,15 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
             Thing::Trap => {
                 let m = gift();
                 let wobble = (s.time * 6.0 + x).sin() * 0.15;
-                if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, 0.6, 0.8, haze) {
+                if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, ground, 0.6, 0.8, haze) {
                     pose.roll = wobble;
                     m.draw(cv, &pose);
                 }
             }
         }
     }
-    particles(cv, &v, &s.cam, s.particles);
+    cv.clip = f32::NEG_INFINITY;
+    particles(cv, &v, &s.cam, tr, s.particles);
 }
 
 /// 3 x 5 pixel font for big text.

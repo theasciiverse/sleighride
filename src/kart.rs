@@ -11,6 +11,10 @@
 //!   charging. Snowbanks bounce you back, pines stop you dead.
 //! - Rocket start: the time the gas has been held when the lights go is
 //!   judged. Hit the gas as the 1 appears.
+//! - Hills: downhill is faster, uphill slower. Where the ground falls away
+//!   faster than the sleigh can drop (a crest, the lip of a kicker) it takes
+//!   off; in the air there is no grip, gas or drift charge. Tap drift in the
+//!   air for a trick, and land it for a boost.
 
 use crate::track::{Surface, Track};
 
@@ -22,6 +26,10 @@ pub const TIERS: [f32; 3] = [1.0, 2.2, 3.6];
 const TIER_BOOST: [f32; 4] = [0.0, 0.45, 0.95, 1.6];
 
 const KART_R: f32 = 1.6;
+/// Gravity, units per second squared.
+pub const GRAVITY: f32 = 50.0;
+/// How hard a slope pulls on speed.
+const SLOPE_PULL: f32 = 45.0;
 const TREE_R: f32 = 1.4;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -59,6 +67,10 @@ pub enum Event {
     Bank,
     Tree,
     Hit,
+    Launch,
+    Trick,
+    /// Touched down; a trick landed gives a boost.
+    Land { trick: bool },
 }
 
 #[derive(Clone, Debug)]
@@ -94,6 +106,13 @@ pub struct Kart {
     pub plough: bool,
     /// Distance travelled, for animation.
     pub odo: f32,
+    /// Height of the runners, and how fast that is changing.
+    pub z: f32,
+    pub vz: f32,
+    pub air: bool,
+    /// A trick done in this jump; how far through its flip it is (0..1).
+    pub trick: bool,
+    pub flip: f32,
     /// Time the gas has been held during the countdown.
     pub start_hold: f32,
     pub events: Vec<Event>,
@@ -136,6 +155,11 @@ impl Kart {
             surface: Surface::Road,
             plough: false,
             odo: 0.0,
+            z: 0.0,
+            vz: 0.0,
+            air: false,
+            trick: false,
+            flip: 0.0,
             start_hold: 0.0,
             events: Vec::new(),
         }
@@ -177,8 +201,61 @@ impl Kart {
         self.start_hold = 0.0;
     }
 
+    /// Sit on the ground where the kart is.
+    pub fn settle(&mut self, track: &Track) {
+        self.z = track.height(self.x, self.y);
+        self.vz = 0.0;
+        self.air = false;
+    }
+
     pub fn step(&mut self, c: Controls, track: &Track) {
         self.events.clear();
+        self.drive(c, track);
+        self.vertical(track);
+    }
+
+    /// Follow the ground, or fly and fall.
+    fn vertical(&mut self, track: &Track) {
+        let ground = track.height(self.x, self.y);
+        if self.air {
+            self.vz -= GRAVITY * DT;
+            self.z += self.vz * DT;
+            if self.trick {
+                self.flip = (self.flip + DT * 2.2).min(1.0);
+            }
+            if self.z <= ground {
+                let trick = self.trick && self.flip >= 1.0;
+                if trick {
+                    self.boost = self.boost.max(0.8);
+                } else if self.trick {
+                    // landed mid-flip: a stumble
+                    self.speed *= 0.6;
+                } else if -self.vz > 30.0 {
+                    self.speed *= 0.92;
+                }
+                self.events.push(Event::Land { trick });
+                self.z = ground;
+                self.vz = 0.0;
+                self.air = false;
+                self.trick = false;
+                self.flip = 0.0;
+            }
+            return;
+        }
+        let follow = (ground - self.z) / DT;
+        // the ground falls away faster than the sleigh can drop: take off
+        if follow < self.vz - GRAVITY * DT - 6.0 && self.speed.abs() > 15.0 {
+            self.air = true;
+            self.vz -= GRAVITY * DT;
+            self.z += self.vz * DT;
+            self.events.push(Event::Launch);
+        } else {
+            self.vz = follow.clamp(-80.0, 80.0);
+            self.z = ground;
+        }
+    }
+
+    fn drive(&mut self, c: Controls, track: &Track) {
         let st = self.stats;
         self.surface = track.surface(self.x, self.y);
         let powder = self.surface == Surface::Powder;
@@ -207,7 +284,10 @@ impl Kart {
         if boosting {
             top *= 1.32;
         }
-        if c.gas && !c.brake {
+        if self.air {
+            // no grip in the air: only a little drag
+            self.speed -= self.speed * 0.05 * DT;
+        } else if c.gas && !c.brake {
             if self.speed < top {
                 let a = st.accel * if boosting { 3.0 } else { 1.0 };
                 self.speed += (top - self.speed) * a * DT;
@@ -222,7 +302,11 @@ impl Kart {
             let drag = if powder { 30.0 } else { 9.0 };
             self.speed -= self.speed.signum() * (drag * DT).min(self.speed.abs());
         }
-        if self.speed > top {
+        if !self.air {
+            // downhill pulls you on, uphill holds you back
+            self.speed -= SLOPE_PULL * track.slope(self.x, self.y, self.travel) * DT * self.speed.signum().max(0.0);
+        }
+        if self.speed > top && !self.air {
             // let go of speed above the cap gently, faster in powder
             let k = if powder { 2.5 } else { 1.2 };
             self.speed -= (self.speed - top) * k * DT;
@@ -231,7 +315,13 @@ impl Kart {
         // drift
         let pressed = c.drift && !self.drift_was;
         self.drift_was = c.drift;
-        if pressed {
+        if pressed && self.air {
+            // a trick, once a jump
+            if !self.trick {
+                self.trick = true;
+                self.events.push(Event::Trick);
+            }
+        } else if pressed {
             self.drift_armed = true;
             if self.hop == 0.0 && self.speed > 8.0 {
                 self.hop = 0.2;
@@ -244,7 +334,7 @@ impl Kart {
                 self.end_drift(true);
             }
         }
-        if self.drift_armed && self.drift == 0 && c.steer.abs() > 0.3 && self.speed > 22.0 {
+        if self.drift_armed && self.drift == 0 && !self.air && c.steer.abs() > 0.3 && self.speed > 22.0 {
             self.drift = if c.steer > 0.0 { 1 } else { -1 };
             self.drift_armed = false;
             self.charge = 0.0;
@@ -259,7 +349,7 @@ impl Kart {
         let rate = if self.drift != 0 {
             let d = self.drift as f32;
             let inward = c.steer * d;
-            if !powder {
+            if !powder && !self.air {
                 let before = tier_of(self.charge);
                 self.charge += DT * st.charge * (1.0 + 0.5 * inward.max(0.0));
                 let after = tier_of(self.charge);
@@ -272,11 +362,15 @@ impl Kart {
             let sharper = if boosting { 1.15 } else { 1.0 };
             c.steer * st.turn * reach * sharper * self.speed.signum()
         };
+        // a little air control, no more
+        let rate = if self.air { rate * 0.3 } else { rate };
         self.heading = wrap(self.heading + rate * DT);
 
         // travel direction trails the nose; in a slide it trails a lot
         let ice = self.surface == Surface::Ice;
-        let grip = if ice {
+        let grip = if self.air {
+            0.0
+        } else if ice {
             st.grip * 0.1
         } else if self.drift != 0 {
             st.grip * 0.3
@@ -302,7 +396,10 @@ impl Kart {
             }
             return;
         }
-        for t in track.trees.iter().filter(|_| !self.plough) {
+        // pines are taller than any jump, but a sleigh well up clears the
+        // little ones
+        let up = self.z - track.height(nx, ny);
+        for t in track.trees.iter().filter(|t| !self.plough && up < t.size * 6.0) {
             let r = KART_R + TREE_R * t.size;
             if (t.x - nx).abs() < r && (t.y - ny).abs() < r && (t.x - nx).hypot(t.y - ny) < r {
                 let (ax, ay) = (nx - t.x, ny - t.y);
@@ -450,6 +547,56 @@ mod tests {
         }
         assert_eq!(hits, 1, "one crash, not a pin");
         assert!(k.speed > 20.0, "drove on round it: speed {}", k.speed);
+    }
+
+    #[test]
+    fn the_kicker_on_the_crest_throws_you_and_you_land() {
+        let mut t = Track::frozen_lake();
+        t.trees.clear();
+        let n = t.len();
+        let lip = (0.125 * n as f32) as usize;
+        let i = lip - 60;
+        let (x, y) = t.pts[i];
+        let mut k = Kart::new(x, y, t.heading_at(i), crate::roster::ROSTER[0].stats);
+        k.settle(&t);
+        k.speed = 62.0;
+        let (mut launched, mut landed, mut peak) = (false, false, 0.0f32);
+        for _ in 0..(3.0 / DT) as usize {
+            // steer at the centreline so the run is straight
+            let j = t.idx(k.x, k.y).unwrap();
+            let (cx, cy) = t.pts[t.ahead(j, 15)];
+            let err = wrap((cy - k.y).atan2(cx - k.x) - k.heading);
+            k.step(Controls { gas: true, steer: (err * 3.0).clamp(-1.0, 1.0), ..Default::default() }, &t);
+            launched |= k.events.contains(&Event::Launch);
+            landed |= k.events.iter().any(|e| matches!(e, Event::Land { .. }));
+            if k.air {
+                peak = peak.max(k.z - t.height(k.x, k.y));
+            }
+        }
+        assert!(launched && landed, "launched {launched} landed {landed}");
+        assert!(peak > 2.0, "real air: {peak}");
+    }
+
+    #[test]
+    fn a_trick_in_the_air_lands_as_a_boost() {
+        let mut t = Track::ring(70.0);
+        t.trees.clear();
+        let (x, y) = t.pts[60];
+        let mut k = Kart::new(x, y, t.heading_at(60), crate::roster::ROSTER[0].stats);
+        k.settle(&t);
+        k.speed = 50.0;
+        // throw it up by hand
+        k.air = true;
+        k.vz = 18.0;
+        k.step(Controls { drift: true, ..Default::default() }, &t);
+        assert!(k.events.contains(&Event::Trick));
+        let mut boost = false;
+        for _ in 0..120 {
+            k.step(Controls::default(), &t);
+            boost |= k.events.contains(&Event::Land { trick: true });
+        }
+        assert!(boost);
+        assert!(k.boost > 0.0 || boost);
     }
 
     #[test]

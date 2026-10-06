@@ -90,6 +90,8 @@ pub struct Racer {
     pub mistletoe: f32,
     /// Just kissed: hearts, and can't be kissed again yet.
     pub smooched: f32,
+    /// Times Santa has caught this racer.
+    pub caught: u8,
 }
 
 impl Racer {
@@ -212,7 +214,8 @@ impl Race {
             let (tx, ty) = track.tangent(i);
             let side = if slot % 2 == 0 { -5.0 } else { 5.0 };
             let (x, y) = (px - ty * side, py + tx * side);
-            let kart = Kart::new(x, y, track.heading_at(i), ROSTER[who].stats);
+            let mut kart = Kart::new(x, y, track.heading_at(i), ROSTER[who].stats);
+            kart.settle(&track);
             let ai = if player == Some(who) { None } else { Some(Ai::new(who, seed)) };
             racers.push(Racer {
                 who,
@@ -234,6 +237,7 @@ impl Race {
                 tangled: 0.0,
                 mistletoe: 0.0,
                 smooched: 0.0,
+                caught: 0,
             });
         }
         // three rows of present boxes across the road
@@ -343,7 +347,7 @@ impl Race {
             // player and ease off ahead
             if let (Some(pp), true) = (player_progress, self.racers[i].ai.is_some()) {
                 let gap = pp - self.progress(i);
-                let k = (gap / 300.0 * 0.05).clamp(-0.05, 0.07);
+                let k = (gap / 600.0 * 0.04).clamp(-0.03, 0.04);
                 self.racers[i].kart.stats.top = ROSTER[self.racers[i].who].stats.top * self.rival_pace * (1.0 + k);
             }
             let track = &self.track;
@@ -430,7 +434,7 @@ impl Race {
                 let (ka, kb) = (&self.racers[a].kart, &self.racers[b].kart);
                 let (dx, dy) = (kb.x - ka.x, kb.y - ka.y);
                 let d = dx.hypot(dy);
-                if d >= BUMP_R || d < 1e-3 {
+                if d >= BUMP_R || d < 1e-3 || (ka.z - kb.z).abs() > 3.0 {
                     continue;
                 }
                 let (ux, uy) = (dx / d, dy / d);
@@ -702,6 +706,7 @@ impl Race {
                 let i = self.track.ahead(last.idx, -90);
                 let (x, y) = self.track.pts[i];
                 let mut k = Kart::new(x, y, self.track.heading_at(i), PLOUGH);
+                k.settle(&self.track);
                 k.plough = true;
                 k.speed = 60.0;
                 self.santa.kart = k;
@@ -733,6 +738,7 @@ impl Race {
                 if !k.stunned() {
                     k.hit(1.6, 2.0);
                 }
+                self.racers[i].caught += 1;
                 self.notes.push(Note::SantaCaught(i));
                 self.notes.push(Note::Hit(i, None));
                 log::info!("Santa caught {}", ROSTER[self.racers[i].who].name);
@@ -804,6 +810,7 @@ mod tests {
             let (x, y) = r.track.pts[at];
             let stats = r.racers[k].kart.stats;
             r.racers[k].kart = Kart::new(x, y, r.track.heading_at(at), stats);
+            r.racers[k].kart.settle(&r.track);
         }
         (r, p)
     }

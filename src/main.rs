@@ -44,14 +44,20 @@ fn main() -> io::Result<()> {
         let get = |k: usize| args.get(i + k).cloned().unwrap_or_default();
         // SECS ending in "d": wait from then on for a slide with gold sparks
         let secs_arg = get(4);
+        // ...or ending in "a": wait for the racer to be in the air
         let wait_drift = secs_arg.ends_with('d');
-        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches('d').parse().unwrap_or(10.0));
+        let wait_air = secs_arg.ends_with('a');
+        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
         }
         g.run_auto(secs);
-        while wait_drift && g.race.racers[0].kart.tier() < 2 && g.race.clock < 600.0 {
+        let me = g.race.player().unwrap_or(pick);
+        while wait_drift && g.race.racers[me].kart.tier() < 2 && g.race.clock < 600.0 {
+            g.run_auto(DT);
+        }
+        while wait_air && !(g.race.racers[me].kart.air && g.race.racers[me].kart.vz < 2.0) && g.race.clock < 600.0 {
             g.run_auto(DT);
         }
         std::fs::write(get(1), g.shot(cols, rows).ppm())?;

@@ -88,11 +88,52 @@ pub struct Track {
     /// Road half-width.
     pub half: f32,
     cells: Vec<Cell>,
+    /// Ground height, MAP x MAP, one per unit cell.
+    ground: Vec<f32>,
+    pub lake: f32,
     pub trees: Vec<Tree>,
     pub theme: Theme,
     /// Ice patches on the road: centre and radius.
     pub ice: Vec<(f32, f32, f32)>,
 }
+
+/// The lie of the land: heights along the lap as (fraction of the lap,
+/// height) keys eased between, kickers that throw you into the air, and the
+/// level of the lake inside the loop. Heights are in world units.
+pub struct Relief {
+    pub keys: &'static [(f32, f32)],
+    /// (fraction of the lap at the lip, rise, run-up in samples): the road
+    /// ramps up by `rise` over the run-up and drops back at the lip.
+    pub kickers: &'static [(f32, f32, usize)],
+    pub lake: f32,
+}
+
+const FLAT: Relief = Relief { keys: &[], kickers: &[], lake: 0.0 };
+
+/// Frozen Lake: the start straight climbs a ridge along the west shore to a
+/// kicker on the crest, rolls down the north bank, over the hills of the
+/// east side, round the hairpin, then a second kicker throws you down to
+/// the lake shore for the run home along the south.
+const FROZEN_RELIEF: Relief = Relief {
+    keys: &[
+        (0.0, 0.0),
+        (0.035, 0.0),
+        (0.125, 26.0),
+        (0.14, 21.0),
+        (0.2, 10.0),
+        (0.26, 10.0),
+        (0.33, 22.0),
+        (0.42, 4.0),
+        (0.5, 15.0),
+        (0.56, 8.0),
+        (0.62, 12.0),
+        (0.66, -6.0),
+        (0.75, -9.0),
+        (0.9, -6.0),
+    ],
+    kickers: &[(0.125, 3.5, 26), (0.62, 3.5, 26)],
+    lake: -26.0,
+};
 
 /// The courses, in menu order.
 pub fn courses() -> [(&'static str, fn() -> Track); 2] {
@@ -192,6 +233,93 @@ fn resample(ctrl: &[(f32, f32)], step: f32) -> Vec<(f32, f32)> {
     out
 }
 
+fn smooth(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Height of the road at each of `n` samples round the lap.
+fn road_profile(r: &Relief, n: usize) -> Vec<f32> {
+    let mut p = vec![0.0; n];
+    if !r.keys.is_empty() {
+        for (i, h) in p.iter_mut().enumerate() {
+            let f = i as f32 / n as f32;
+            // the keys before and after, wrapping round the lap
+            let k = r.keys.iter().rposition(|k| k.0 <= f).unwrap_or(r.keys.len() - 1);
+            let (a, b) = (r.keys[k], r.keys.get(k + 1).copied().unwrap_or((1.0 + r.keys[0].0, r.keys[0].1)));
+            let span = (b.0 - a.0).max(1e-6);
+            *h = a.1 + (b.1 - a.1) * smooth((f - a.0) / span);
+        }
+    }
+    for &(lip, rise, run) in r.kickers {
+        let l = (lip * n as f32) as usize;
+        for j in 0..run {
+            let i = (l + n - run + j) % n;
+            p[i] += rise * (j + 1) as f32 / run as f32;
+        }
+    }
+    p
+}
+
+fn value_noise(x: f32, y: f32) -> f32 {
+    let (xi, yi) = (x.floor() as i32, y.floor() as i32);
+    let (fx, fy) = (smooth(x - xi as f32), smooth(y - yi as f32));
+    let v = |a: i32, b: i32| (hash(a, b) & 0xffff) as f32 / 65535.0;
+    let top = v(xi, yi) + (v(xi + 1, yi) - v(xi, yi)) * fx;
+    let bot = v(xi, yi + 1) + (v(xi + 1, yi + 1) - v(xi, yi + 1)) * fx;
+    top + (bot - top) * fy
+}
+
+/// Ground height for every cell: the road flat across at its profile
+/// height, shoulders of powder rising gently to the snowbanks with soft
+/// drifts, then down to the lake. Off the road it is smoothed so that where
+/// two stretches of course meet at different heights the land between rolls
+/// rather than steps.
+fn ground_heights(cells: &[Cell], profile: &[f32], lake: f32, half: f32) -> Vec<f32> {
+    let bank = BANK_FROM.max(half + 4.0);
+    let shoulder = |d: f32| (d - half - 2.5).max(0.0) * 0.1;
+    let mut g = vec![lake; MAP * MAP];
+    for y in 0..MAP {
+        for x in 0..MAP {
+            let c = cells[y * MAP + x];
+            if !c.dist.is_finite() {
+                continue;
+            }
+            let (d, base) = (c.dist, profile[c.idx as usize]);
+            let edge = base + shoulder(bank);
+            g[y * MAP + x] = if d <= half + 2.5 {
+                base
+            } else if d <= bank {
+                let drift = value_noise(x as f32 / 11.0, y as f32 / 11.0) - 0.5;
+                base + shoulder(d) + drift * 2.4 * ((d - half - 2.5) / 10.0).min(1.0) * ((bank - d) / 6.0).min(1.0)
+            } else if d <= bank + 6.0 {
+                edge + 1.5 * (1.0 - ((d - bank - 3.0) / 3.0).abs())
+            } else {
+                edge + (lake - edge) * smooth((d - bank - 6.0) / 45.0)
+            };
+        }
+    }
+    // smooth off the road, twice
+    for _ in 0..2 {
+        let src = g.clone();
+        for y in 2..MAP - 2 {
+            for x in 2..MAP - 2 {
+                if cells[y * MAP + x].dist <= half + 5.0 {
+                    continue;
+                }
+                let mut sum = 0.0;
+                for dy in 0..5 {
+                    for dx in 0..5 {
+                        sum += src[(y + dy - 2) * MAP + x + dx - 2];
+                    }
+                }
+                g[y * MAP + x] = sum / 25.0;
+            }
+        }
+    }
+    g
+}
+
 fn hash(x: i32, y: i32) -> u32 {
     let mut h = (x as u32).wrapping_mul(0x9E37_79B1) ^ (y as u32).wrapping_mul(0x85EB_CA77);
     h ^= h >> 15;
@@ -201,13 +329,13 @@ fn hash(x: i32, y: i32) -> u32 {
 
 impl Track {
     pub fn frozen_lake() -> Track {
-        let mut t = Track::build("Frozen Lake", FROZEN_LAKE, 14.0, FROZEN);
+        let mut t = Track::build("Frozen Lake", FROZEN_LAKE, 14.0, FROZEN, &FROZEN_RELIEF);
         t.add_ice(&[(0.36, -5.0, 6.0), (0.64, 4.0, 7.0)]);
         t
     }
 
     pub fn eggnogg() -> Track {
-        let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG);
+        let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &FLAT);
         t.add_ice(&[(0.17, 3.0, 6.0), (0.45, -4.0, 7.0), (0.58, 5.0, 6.0), (0.86, 0.0, 8.0)]);
         t
     }
@@ -233,10 +361,10 @@ impl Track {
             let a = i as f32 / 24.0 * std::f32::consts::TAU;
             (512.0 + 380.0 * a.cos(), 512.0 + 380.0 * a.sin())
         }).collect();
-        Track::build("Ring", &ctrl, half, FROZEN)
+        Track::build("Ring", &ctrl, half, FROZEN, &FLAT)
     }
 
-    fn build(name: &'static str, ctrl: &[(f32, f32)], half: f32, theme: Theme) -> Track {
+    fn build(name: &'static str, ctrl: &[(f32, f32)], half: f32, theme: Theme, relief: &Relief) -> Track {
         let pts = resample(ctrl, 1.0);
         // how far around each sample the map is filled in
         let reach = BANK_FROM.max(half + 4.0) as i32 + 16;
@@ -263,7 +391,9 @@ impl Track {
                 (dx / l, dy / l)
             })
             .collect();
-        let mut t = Track { name, pts, tangents, half, cells, trees: Vec::new(), theme, ice: Vec::new() };
+        let profile = road_profile(relief, n);
+        let ground = ground_heights(&cells, &profile, relief.lake, half);
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new() };
         // pines on a jittered grid, in the powder between kerb and bank
         let grid = 9;
         for gy in 0..(MAP as i32 / grid) {
@@ -285,6 +415,29 @@ impl Track {
 
     pub fn len(&self) -> usize {
         self.pts.len()
+    }
+
+    /// Ground height at a point, smoothly between cells.
+    pub fn height(&self, x: f32, y: f32) -> f32 {
+        let (fx, fy) = (x - 0.5, y - 0.5);
+        let (x0, y0) = (fx.floor(), fy.floor());
+        let (tx, ty) = (fx - x0, fy - y0);
+        let at = |cx: f32, cy: f32| -> f32 {
+            if cx < 0.0 || cy < 0.0 || cx >= MAP as f32 || cy >= MAP as f32 {
+                self.lake
+            } else {
+                self.ground[cy as usize * MAP + cx as usize]
+            }
+        };
+        let top = at(x0, y0) + (at(x0 + 1.0, y0) - at(x0, y0)) * tx;
+        let bot = at(x0, y0 + 1.0) + (at(x0 + 1.0, y0 + 1.0) - at(x0, y0 + 1.0)) * tx;
+        top + (bot - top) * ty
+    }
+
+    /// The slope of the ground along a heading: rise per unit run.
+    pub fn slope(&self, x: f32, y: f32, heading: f32) -> f32 {
+        let (c, s) = (heading.cos(), heading.sin());
+        (self.height(x + c, y + s) - self.height(x - c, y - s)) / 2.0
     }
 
     fn cell(&self, x: f32, y: f32) -> Option<Cell> {
@@ -381,6 +534,31 @@ mod tests {
             assert!(gap < 3, "{name}: sample {i} is nearer {near}");
             assert!(x > t.half + 3.0 && y > t.half + 3.0 && x < MAP as f32 - t.half - 3.0 && y < MAP as f32 - t.half - 3.0);
         }
+        }
+    }
+
+    #[test]
+    fn the_road_climbs_smoothly_except_at_the_kicker_lips() {
+        let t = Track::frozen_lake();
+        let n = t.len();
+        let profile = road_profile(&FROZEN_RELIEF, n);
+        let lips: Vec<usize> = FROZEN_RELIEF.kickers.iter().map(|k| (k.0 * n as f32) as usize).collect();
+        let (lo, hi) = profile.iter().fold((f32::MAX, f32::MIN), |(a, b), &h| (a.min(h), b.max(h)));
+        assert!(hi - lo > 30.0, "hills: {lo}..{hi}");
+        for i in 0..n {
+            let step = profile[(i + 1) % n] - profile[i];
+            let at_lip = lips.iter().any(|&l| (i + 1) % n == l || i == l);
+            if !at_lip {
+                assert!(step.abs() < 0.3, "step {step} at {i}");
+            }
+            // the ground under the centreline is the road height (beside a
+            // lip the lookup blends the top of the ramp with the drop)
+            let (x, y) = t.pts[i];
+            let near_lip = lips.iter().any(|&l| (i as isize - l as isize).abs() <= 2);
+            assert!(near_lip || (t.height(x, y) - profile[i]).abs() < 0.6, "at {i}: {} vs {}", t.height(x, y), profile[i]);
+        }
+        for &l in &lips {
+            assert!(profile[l - 1] - profile[l] > 2.5, "a drop at the lip {l}");
         }
     }
 

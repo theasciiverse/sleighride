@@ -22,6 +22,16 @@ use std::time::Instant;
 /// The name on the splash screen.
 pub const TITLE: &str = "SLEIGHRIDE";
 
+/// The story, a page at a time.
+const STORY: [&str; 4] = [
+    "Christmas morning, six o'clock. Every present delivered, every chimney climbed. Santa kicks off his boots, sinks into his armchair by the workshop fire, and is snoring before his cocoa has cooled.",
+    "The elves have worked every single day since last January. Bob holds up a jangling ring of keys: the big sleigh, the reindeer stables, the snowmobile shed. \"One lap of the lake,\" he whispers. \"He'll never know.\"",
+    "Three laps later Santa wakes to an empty garage. Only the snowplough is left. His cocoa is cold. His boots are on the wrong feet.",
+    "He has a list. He is checking it twice. And whoever is out in front is clearly the ringleader.",
+];
+/// Characters a second as the story types itself out.
+const TYPE_SPEED: f32 = 70.0;
+
 /// Difficulty: its name and the rivals' pace (a share of their top speed).
 /// The rivals drift perfectly, so at full pace they are a hard race; a
 /// little slower gives a person a fair one.
@@ -30,6 +40,8 @@ pub const DIFFICULTY: [(&str, f32); 3] = [("Easy", 0.93), ("Normal", 0.96), ("Ha
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Phase {
     Title,
+    /// Why Santa is after you; once per run, before the racer choice.
+    Story,
     /// Choose your racer.
     Select,
     Race,
@@ -42,6 +54,9 @@ pub struct Game {
     pub pick: usize,
     /// Index into DIFFICULTY.
     pub level: usize,
+    /// The story has been shown this run; and which page is up.
+    story_seen: bool,
+    page: usize,
     pub race: Race,
     cam: Camera,
     particles: Vec<Particle>,
@@ -78,7 +93,7 @@ impl Game {
         let mut race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
         race.rival_pace = DIFFICULTY[level].1;
         let cam = Camera::behind(&race.racers[pick].kart);
-        let mut g = Game { phase, course, pick, level, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        let mut g = Game { phase, course, pick, level, story_seen: false, page: 0, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
         if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
@@ -90,7 +105,9 @@ impl Game {
 
     fn switch(&mut self, p: Phase, course: usize, input: &mut Input) {
         log::info!("phase {:?} -> {p:?} on {} as {}, {}", self.phase, courses()[course].0, ROSTER[self.pick].name, DIFFICULTY[self.level].0);
+        let seen = self.story_seen;
         *self = Game::new(p, course, self.pick, self.level);
+        self.story_seen = seen;
         input.clear();
     }
 
@@ -122,7 +139,27 @@ impl Game {
                 (_, Cmd::Exit) => self.exit = true,
                 (_, Cmd::Help) => self.help = !self.help,
                 (_, Cmd::Back) | (_, Cmd::Confirm) if self.help => self.help = false,
+                (Phase::Title, Cmd::Confirm) if !self.story_seen => {
+                    self.page = 0;
+                    self.screen(Phase::Story);
+                }
                 (Phase::Title, Cmd::Confirm) => self.screen(Phase::Select),
+                (Phase::Story, Cmd::Confirm) => {
+                    if (self.t * TYPE_SPEED) < STORY[self.page].len() as f32 {
+                        // show the whole page first
+                        self.t = 1e3;
+                    } else if self.page + 1 < STORY.len() {
+                        self.page += 1;
+                        self.t = 0.0;
+                    } else {
+                        self.story_seen = true;
+                        self.screen(Phase::Select);
+                    }
+                }
+                (Phase::Story, Cmd::Back) => {
+                    self.story_seen = true;
+                    self.screen(Phase::Select);
+                }
                 (Phase::Title, Cmd::Back) => self.exit = true,
                 (Phase::Select, Cmd::Confirm) => return self.switch(Phase::Race, self.course, input),
                 (Phase::Select, Cmd::Back) => self.screen(Phase::Title),
@@ -161,7 +198,7 @@ impl Game {
         if self.phase == Phase::Race && after != before {
             log::debug!("controls {after:?}");
         }
-        self.cam.follow(&self.race.racers[me].kart, DT);
+        self.cam.follow(&self.race.racers[me].kart, &self.race.track, DT);
         self.react(me);
         self.spawn_particles();
         for p in &mut self.particles {
@@ -204,8 +241,11 @@ impl Game {
         for n in notes {
             match n {
                 Note::Burst(x, y) => self.confetti(x, y),
-                Note::SantaComing if playing => self.flash = Some(("SANTA'S COMING!".into(), 2.0, SANTA_COLOUR)),
-                Note::SantaCaught(i) if i == me && playing => self.flash = Some(("HO HO NO!".into(), 1.6, SANTA_COLOUR)),
+                Note::SantaComing if playing => {
+                    let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
+                    self.flash = Some((text.into(), 2.0, SANTA_COLOUR));
+                }
+                Note::SantaCaught(i) if i == me && playing => self.flash = Some(("NAUGHTY LIST!".into(), 1.8, SANTA_COLOUR)),
                 Note::Kiss(a, b) if (a == me || b == me) && playing => self.flash = Some(("SMOOCH!".into(), 1.0, (255, 110, 160))),
                 Note::Got(i, item) if i == me && playing => log::info!("got {item:?}"),
                 _ => {}
@@ -280,6 +320,7 @@ impl Game {
         let big = ((cv.w as i32) / 70).clamp(1, 4);
         match self.phase {
             Phase::Title => self.draw_title_canvas(cv, big),
+            Phase::Story => dim(cv),
             Phase::Select => self.draw_select_canvas(cv, big),
             Phase::Race => self.draw_race_canvas(cv, big),
         }
@@ -293,6 +334,7 @@ impl Game {
         cv.flush(buf, area);
         match self.phase {
             Phase::Title => self.draw_title_hud(buf, area, input),
+            Phase::Story => self.draw_story(buf, area),
             Phase::Select => self.draw_select_hud(buf, area),
             Phase::Race => self.draw_race_hud(buf, area, input),
         }
@@ -313,6 +355,35 @@ impl Game {
         dim(cv);
         big_text(cv, "CHOOSE YOUR RACER", (cv.h as i32) / 8, big, (250, 210, 70));
         stage(cv, self.pick, self.t, cv.w as f32 * 0.38, cv.h as f32 * 0.66);
+    }
+
+    fn draw_story(&self, buf: &mut Buffer, area: Rect) {
+        let width = (area.width as usize).saturating_sub(8).clamp(20, 64);
+        let shown = (self.t * TYPE_SPEED) as usize;
+        let text: String = STORY[self.page].chars().take(shown).collect();
+        // wrap by words into lines
+        let mut lines: Vec<String> = vec![String::new()];
+        for word in text.split(' ') {
+            let last = lines.last_mut().unwrap();
+            if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width {
+                lines.push(word.to_string());
+            } else {
+                if !last.is_empty() {
+                    last.push(' ');
+                }
+                last.push_str(word);
+            }
+        }
+        let x0 = area.width.saturating_sub(width as u16 + 4) / 2;
+        let y0 = area.height.saturating_sub(10) / 2;
+        for y in 0..10u16 {
+            put_text(buf, x0, y0 + y, &" ".repeat(width + 4), panel_style());
+        }
+        for (i, l) in lines.iter().enumerate() {
+            put_text(buf, x0 + 2, y0 + 1 + i as u16, l, panel_style());
+        }
+        let foot = format!("{} / {}   Enter: next   Esc: skip", self.page + 1, STORY.len());
+        put_text(buf, x0 + 2, y0 + 8, &foot, accent_style());
     }
 
     fn draw_select_hud(&self, buf: &mut Buffer, area: Rect) {
@@ -350,7 +421,7 @@ impl Game {
         let y_name = (area.height as f32 * 0.70) as u16;
         let c = who.colour();
         put_text(buf, area.width.saturating_sub(name.len() as u16) / 2, y_name, &name, Style::default().fg(Color::Rgb(c.0, c.1, c.2)).bg(Color::Rgb(14, 18, 44)).add_modifier(Modifier::BOLD));
-        let tag = ["Santa's helpers have taken everything with runners for a joyride.", "Santa is NOT happy."];
+        let tag = ["Christmas morning. Santa's asleep. The elves have found the keys.", "He is NOT going to be happy."];
         let y0 = (area.height as f32 * 0.30) as u16;
         for (i, l) in tag.iter().enumerate() {
             put_text(buf, area.width.saturating_sub(l.chars().count() as u16) / 2, y0 + i as u16, l, panel_style());
@@ -503,6 +574,13 @@ impl Game {
                     lines.push(format!("Lap {}   {}{mark}", i + 1, fmt_time(*t)));
                 }
                 lines.push(String::new());
+                lines.push(match p.caught {
+                    0 => "Santa never caught you.".to_string(),
+                    1 => "Santa caught you once.".to_string(),
+                    n => format!("Santa caught you {n} times."),
+                });
+                lines.push(santa_says(p.place, p.caught).to_string());
+                lines.push(String::new());
                 lines.push("Enter: race again    Esc: title".into());
                 let refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
                 draw_box(buf, area, &refs);
@@ -559,6 +637,17 @@ impl Game {
         for _ in 0..(seconds / DT) as usize {
             self.step_race(Controls::default());
         }
+    }
+}
+
+/// Santa's verdict on the results card.
+fn santa_says(place: u8, caught: u8) -> &'static str {
+    match (place, caught) {
+        (1, 0) => "Santa: \"...Fine. FINE. You're still polishing the runners.\"",
+        (1, _) => "Santa: \"First place AND the naughty list. Impressive.\"",
+        (_, 2..) => "Santa: \"Coal. All of you. Coal.\"",
+        (6, _) => "Santa: \"Last? With MY reindeer? Back to the stables.\"",
+        _ => "Santa: \"Back in the workshop by breakfast, the lot of you.\"",
     }
 }
 
@@ -701,6 +790,7 @@ mod tests {
         g.run_auto(2.0);
         let text = screen_text(&g, &input);
         assert!(text.contains("FINISHED"), "{text}");
+        assert!(text.contains("Santa:"), "{text}");
         assert!(text.contains("Bob"));
         assert_eq!(text.matches("Lap ").count(), 3);
     }
@@ -711,6 +801,13 @@ mod tests {
         let mut input = Input::new(true);
         input.cmds.push(Cmd::Confirm);
         g.tick(&mut input);
+        assert_eq!(g.phase, Phase::Story, "the story comes first");
+        assert!(screen_text(&g, &input).contains("1 / 4"));
+        // Enter fills the page, then turns it; four pages
+        for _ in 0..8 {
+            input.cmds.push(Cmd::Confirm);
+            g.tick(&mut input);
+        }
         assert_eq!(g.phase, Phase::Select);
         input.cmds.extend([Cmd::Right, Cmd::Right]);
         g.tick(&mut input);
