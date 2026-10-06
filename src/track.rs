@@ -22,6 +22,8 @@ pub enum Surface {
     Cream,
     /// Out on the frozen lake: clear, slippery ice, road and all.
     BlackIce,
+    /// A conveyor belt in the workshop: it carries you along, faster.
+    Conveyor,
 }
 
 /// A course's colours.
@@ -47,6 +49,9 @@ pub struct Theme {
     pub canes: bool,
     /// Gingerbread houses stand among the pines.
     pub houses: bool,
+    /// Indoors: a ceiling of rafters and lamps instead of sky, toys
+    /// instead of pines, no birds.
+    pub indoors: bool,
 }
 
 pub const FROZEN: Theme = Theme {
@@ -64,6 +69,7 @@ pub const FROZEN: Theme = Theme {
     birds: (226, 232, 248),
     canes: false,
     houses: false,
+    indoors: false,
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -82,6 +88,7 @@ pub const EGGNOGG: Theme = Theme {
     birds: (52, 30, 52),
     canes: false,
     houses: false,
+    indoors: false,
 };
 
 #[derive(Clone, Copy)]
@@ -126,6 +133,10 @@ pub struct Track {
     pub holes: Vec<(f32, f32, f32)>,
     /// Cottages in the road: centre, size, and which way they face.
     pub cottages: Vec<(f32, f32, f32, f32)>,
+    /// Conveyor belts along the road: (first sample, length).
+    pub belts: Vec<(usize, usize)>,
+    /// Stands of spectators beside the road, as fractions of the lap.
+    pub stands: Vec<f32>,
     /// Weather: whether blizzards blow here, and how many snow tornadoes.
     pub blizzards: bool,
     pub twisters: usize,
@@ -163,11 +174,15 @@ pub struct Relief {
     /// Little houses standing in the road, to jump over (or go round):
     /// (fraction of the lap, size).
     pub cottages: &'static [(f32, f32)],
+    /// Conveyor belts along the road: (fraction of the lap, length).
+    pub belts: &'static [(f32, usize)],
+    /// Tall walls instead of slopes down to a lake (indoors).
+    pub walls: bool,
     pub lake: f32,
 }
 
 #[cfg(test)]
-const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], cottages: &[], lake: 0.0 };
+const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], cottages: &[], belts: &[], walls: false, lake: 0.0 };
 
 /// Eggnogg: up from the start to a high ridge in the north, a kicker off
 /// its edge down into the eggnog basin, rolling hills through the hairpins
@@ -196,6 +211,8 @@ const EGGNOGG_RELIEF: Relief = Relief {
     on_lake: &[],
     holes: &[],
     cottages: &[],
+    belts: &[],
+    walls: false,
     lake: -20.0,
 };
 
@@ -231,6 +248,8 @@ const THIN_ICE_RELIEF: Relief = Relief {
         (0.92, -6.0, 3.5),
     ],
     cottages: &[],
+    belts: &[],
+    walls: false,
     lake: 0.0,
 };
 
@@ -267,6 +286,7 @@ pub const CANDY: Theme = Theme {
     birds: (72, 40, 84),
     canes: true,
     houses: false,
+    indoors: false,
 };
 
 /// Candy Cane Forest: winding through the canes, over a big hill with a
@@ -295,6 +315,8 @@ const CANDY_RELIEF: Relief = Relief {
     on_lake: &[],
     holes: &[],
     cottages: &[],
+    belts: &[],
+    walls: false,
     lake: -14.0,
 };
 
@@ -333,6 +355,7 @@ pub const GINGER: Theme = Theme {
     birds: (52, 34, 46),
     canes: false,
     houses: true,
+    indoors: false,
 };
 
 /// Gingerbread Village: through the village and up over a hill with a
@@ -359,6 +382,8 @@ const GINGER_RELIEF: Relief = Relief {
     on_lake: &[],
     holes: &[],
     cottages: &[(0.3385, 0.42)],
+    belts: &[],
+    walls: false,
     lake: -10.0,
 };
 
@@ -381,6 +406,58 @@ const GINGER_PTS: &[(f32, f32)] = &[
     (400.0, 890.0),
 ];
 
+/// Santa's workshop, indoors: polished floorboards, painted kerbs, wood
+/// shavings off the track, wooden walls, rafters and warm lamps above.
+pub const WORKSHOP: Theme = Theme {
+    road: (196, 152, 104),
+    kerb: [(196, 36, 48), (40, 140, 70)],
+    powder: [(206, 176, 128), (226, 200, 150)],
+    bank: [(104, 66, 40), (140, 92, 56)],
+    lake: [(70, 44, 28), (84, 54, 34), (60, 38, 24)],
+    flecks: false,
+    ice: (214, 234, 246),
+    sky: [(40, 26, 18), (120, 80, 48)],
+    haze: (150, 108, 70),
+    hills: [(80, 52, 32), (60, 38, 24)],
+    aurora: false,
+    birds: (0, 0, 0),
+    canes: false,
+    houses: false,
+    indoors: true,
+};
+
+/// The Workshop: along the floor between the toy stacks, onto conveyor
+/// belts, up a ramp to the mezzanine and off its edge with a kicker.
+const WORKSHOP_RELIEF: Relief = Relief {
+    keys: &[(0.0, 0.0), (0.26, 0.0), (0.33, 16.0), (0.42, 16.0), (0.47, 0.0), (0.7, 0.0), (0.76, 3.0), (0.82, 0.0)],
+    kickers: &[(0.42, 3.0, 22)],
+    inlets: &[],
+    on_lake: &[],
+    holes: &[],
+    cottages: &[],
+    belts: &[(0.08, 150), (0.52, 180), (0.86, 160)],
+    walls: true,
+    lake: 0.0,
+};
+
+const WORKSHOP_PTS: &[(f32, f32)] = &[
+    (180.0, 820.0),
+    (160.0, 560.0),
+    (170.0, 300.0),
+    (300.0, 170.0),
+    (520.0, 170.0),
+    (560.0, 330.0),
+    (440.0, 450.0),
+    (560.0, 580.0),
+    (760.0, 520.0),
+    (800.0, 300.0),
+    (900.0, 200.0),
+    (910.0, 560.0),
+    (860.0, 830.0),
+    (620.0, 860.0),
+    (400.0, 780.0),
+];
+
 /// A bright, overcast winter morning.
 pub const MORNING: Theme = Theme {
     road: (172, 178, 198),
@@ -397,6 +474,7 @@ pub const MORNING: Theme = Theme {
     birds: (44, 44, 64),
     canes: false,
     houses: false,
+    indoors: false,
 };
 
 /// Frozen Lake: the start straight climbs a ridge along the west shore to a
@@ -425,17 +503,20 @@ const FROZEN_RELIEF: Relief = Relief {
     on_lake: &[],
     holes: &[],
     cottages: &[],
+    belts: &[],
+    walls: false,
     lake: -26.0,
 };
 
 /// The courses, in menu order.
-pub fn courses() -> [(&'static str, fn() -> Track); 5] {
+pub fn courses() -> [(&'static str, fn() -> Track); 6] {
     [
         ("Frozen Lake", Track::frozen_lake),
         ("Eggnogg", Track::eggnogg),
         ("Thin Ice", Track::thin_ice),
         ("Candy Cane Forest", Track::candy_cane_forest),
         ("Gingerbread Village", Track::gingerbread_village),
+        ("The Workshop", Track::workshop),
     ]
 }
 
@@ -650,10 +731,9 @@ fn hash(x: i32, y: i32) -> u32 {
 
 impl Track {
     pub fn frozen_lake() -> Track {
+        // the first course, for learning: hills, jumps, the inlet and a
+        // little ice, but no weather or wildlife (Thin Ice has those)
         let mut t = Track::build("Frozen Lake", FROZEN_LAKE, 14.0, FROZEN, &FROZEN_RELIEF);
-        t.blizzards = true;
-        t.twisters = 1;
-        t.penguins = Some(0.23);
         t.add_ice(&[(0.36, -5.0, 6.0), (0.64, 4.0, 7.0)]);
         t
     }
@@ -678,6 +758,16 @@ impl Track {
         let mut t = Track::build("Gingerbread Village", GINGER_PTS, 14.0, GINGER, &GINGER_RELIEF);
         t.add_ice(&[(0.12, -4.0, 6.0), (0.64, 3.0, 7.0)]);
         t.yule_lads = true;
+        t
+    }
+
+    pub fn workshop() -> Track {
+        let mut t = Track::build("The Workshop", WORKSHOP_PTS, 14.0, WORKSHOP, &WORKSHOP_RELIEF);
+        t.yule_lads = true;
+        t.stands = vec![0.18, 0.31, 0.63, 0.77, 0.95];
+        // clear the toys out of the stands
+        let spots = crate::crowd::spots(&t);
+        t.trees.retain(|p| spots.iter().all(|s| (s.0 - p.x).hypot(s.1 - p.y) > 6.0));
         t
     }
 
@@ -743,10 +833,25 @@ impl Track {
         let (land, kick) = lie_of_land(relief, n);
         let lake_spans: Vec<(usize, usize)> = relief.on_lake.iter().map(|&(a, b)| ((a * n as f32) as usize, (b * n as f32) as usize)).collect();
         let out_on_lake: Vec<bool> = (0..n).map(|i| lake_spans.iter().any(|&(a, b)| (i + n - a) % n <= (b + n - a) % n)).collect();
-        let ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
+        let mut ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
+        if relief.walls {
+            // indoors: the floor stays level out to the walls, which rise
+            // sheer beyond the bank
+            let bank = BANK_FROM.max(half + 4.0);
+            for (k, c) in cells.iter().enumerate() {
+                let base = if c.dist.is_finite() { land[c.idx as usize] } else { 0.0 };
+                ground[k] = if c.dist <= half + 2.5 {
+                    ground[k]
+                } else if c.dist <= bank {
+                    base
+                } else {
+                    base + 16.0 * ((c.dist - bank) / 3.0).min(1.0)
+                };
+            }
+        }
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), belts: relief.belts.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), stands: Vec::new(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
         for &(f, size) in relief.cottages {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];
@@ -877,6 +982,12 @@ impl Track {
         self.holes.iter().any(|&(hx, hy, r)| (x - hx).abs() < r && (y - hy).abs() < r && (x - hx).hypot(y - hy) < r)
     }
 
+    /// Whether sample `i` is on a conveyor belt.
+    pub fn on_belt(&self, i: usize) -> bool {
+        let n = self.len();
+        self.belts.iter().any(|&(s, len)| (i + n - s) % n < len)
+    }
+
     /// Whether sample `i` is where an inlet crosses the road.
     pub fn in_inlet(&self, i: usize) -> bool {
         let n = self.len();
@@ -889,6 +1000,8 @@ impl Track {
             Surface::Cream
         } else if d <= BANK_FROM && !self.lake_spans.is_empty() && self.idx(x, y).is_some_and(|i| self.out_on_lake(i)) {
             Surface::BlackIce
+        } else if d <= self.half && !self.belts.is_empty() && self.idx(x, y).is_some_and(|i| self.on_belt(i)) {
+            Surface::Conveyor
         } else if d <= self.half {
             if self.on_ice(x, y) {
                 Surface::Ice
@@ -958,7 +1071,7 @@ mod tests {
         for (name, make) in courses() {
         let t = make();
         for (i, &(x, y)) in t.pts.iter().enumerate() {
-            assert!(matches!(t.surface(x, y), Surface::Road | Surface::Ice | Surface::Cream | Surface::BlackIce), "{name} sample {i}");
+            assert!(matches!(t.surface(x, y), Surface::Road | Surface::Ice | Surface::Cream | Surface::BlackIce | Surface::Conveyor), "{name} sample {i}");
             // the course never runs close to itself (nearest sample is local)
             let near = t.idx(x, y).unwrap();
             let gap = (near as isize - i as isize).rem_euclid(t.len() as isize).min((i as isize - near as isize).rem_euclid(t.len() as isize));

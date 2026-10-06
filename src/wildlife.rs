@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn penguins_cross_in_single_file_and_the_bear_never_catches_one() {
-        let t = Track::frozen_lake();
+        let t = Track::thin_ice();
         let mut w = Wildlife::new(&t);
         let mut k = quiet(&t);
         let (mut crossed, mut closest) = (false, f32::MAX);
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn a_penguin_in_the_way_is_bowled_and_slows_you() {
-        let t = Track::frozen_lake();
+        let t = Track::thin_ice();
         let mut w = Wildlife::new(&t);
         let mut k = quiet(&t);
         // wait for the line to be on the road, then drive into the lead bird
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn the_bear_swipes_whoever_comes_close_then_waits() {
-        let t = Track::frozen_lake();
+        let t = Track::thin_ice();
         let mut w = Wildlife::new(&t);
         let b = w.bear.unwrap();
         let mut k = Kart::new(b.x + 3.0, b.y, 0.0, crate::roster::ROSTER[0].stats);

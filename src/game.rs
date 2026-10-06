@@ -96,6 +96,48 @@ fn ordinal(n: u8) -> String {
     format!("{n}{suffix}")
 }
 
+/// Where each comic caption goes on a terminal `cols` x `rows`: its top
+/// left cell and its lines, wrapped to fit its panel.
+pub fn caption_layout(cols: usize, rows: usize) -> Vec<(u16, u16, Vec<String>)> {
+    let spots = crate::story::caption_spots(cols, rows * 2);
+    spots
+        .iter()
+        .enumerate()
+        .map(|(k, &(x0, y0, wide))| {
+            let width = (wide.max(10) as usize).min(30);
+            let mut lines: Vec<String> = vec![String::new()];
+            for word in CAPTIONS[k].split(' ') {
+                let last = lines.last_mut().unwrap();
+                if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width {
+                    lines.push(word.to_string());
+                } else {
+                    if !last.is_empty() {
+                        last.push(' ');
+                    }
+                    last.push_str(word);
+                }
+            }
+            // the middle caption sits flush against the far gutter, clear
+            // of the SNORE! bursting over the near one
+            let longest = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0) as i32;
+            let x0 = if k == 1 { x0 + width as i32 - longest - 2 } else { x0 };
+            (x0.max(1) as u16, (y0 / 2) as u16 + 1, lines)
+        })
+        .collect()
+}
+
+/// The caption boxes in canvas pixels (x0, x1, y0, y1): a cell is one
+/// pixel across and two down.
+pub fn caption_boxes(cols: usize, rows: usize) -> Vec<(f32, f32, f32, f32)> {
+    caption_layout(cols, rows)
+        .iter()
+        .map(|(x0, y0, lines)| {
+            let w = lines.iter().map(|l| l.chars().count() + 2).max().unwrap_or(0) as f32;
+            (*x0 as f32, *x0 as f32 + w, *y0 as f32 * 2.0, (*y0 as f32 + lines.len() as f32) * 2.0)
+        })
+        .collect()
+}
+
 impl Game {
     pub fn new(phase: Phase, course: usize, pick: usize, level: usize) -> Game {
         Game::build(phase, course, pick, level, &[pick])
@@ -525,6 +567,7 @@ impl Game {
                 Note::Swipe(i) => (Sfx::Roar, if i == me { None } else { Some(pos(i)) }),
                 Note::Pounced(i) => (Sfx::Hit, if i == me { None } else { Some(pos(i)) }),
                 Note::Stolen(i) => (Sfx::Giggle, if i == me { None } else { Some(pos(i)) }),
+                Note::Thrown(x, y) => (Sfx::Lob, Some((x, y))),
                 Note::Yowl => match self.race.folklore.cat {
                     Some(c) => (Sfx::Yowl, Some((c.x, c.y))),
                     None => continue,
@@ -645,7 +688,8 @@ impl Game {
         let mut cv = if self.phase == Phase::Story {
             // the story has its own pictures, not the race
             let mut cv = Canvas::new(area.width, area.height);
-            crate::story::draw_comic(&mut cv, self.t);
+            let clear = caption_boxes(cv.w, cv.h / 2);
+            crate::story::draw_comic(&mut cv, self.t, &clear);
             cv
         } else {
             self.scene_canvas(area.width, area.height)
@@ -680,27 +724,13 @@ impl Game {
 
     fn draw_story(&self, buf: &mut Buffer, area: Rect) {
         // a yellow caption box in each panel as it lands
-        let spots = crate::story::caption_spots(area.width as usize, area.height as usize * 2);
         let style = Style::default().fg(Color::Rgb(20, 16, 24)).bg(Color::Rgb(255, 222, 70)).add_modifier(Modifier::BOLD);
-        for (k, &(x0, y0, wide)) in spots.iter().enumerate() {
+        for (k, (x0, y0, lines)) in caption_layout(area.width as usize, area.height as usize).into_iter().enumerate() {
             if self.t < crate::story::BEAT * k as f32 + 0.12 {
                 continue;
             }
-            let width = (wide.max(10) as usize).min(30);
-            let mut lines: Vec<String> = vec![String::new()];
-            for word in CAPTIONS[k].split(' ') {
-                let last = lines.last_mut().unwrap();
-                if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width {
-                    lines.push(word.to_string());
-                } else {
-                    if !last.is_empty() {
-                        last.push(' ');
-                    }
-                    last.push_str(word);
-                }
-            }
             for (i, l) in lines.iter().enumerate() {
-                put_text(buf, x0.max(1) as u16, (y0 / 2) as u16 + 1 + i as u16, &format!(" {l} "), style);
+                put_text(buf, x0, y0 + i as u16, &format!(" {l} "), style);
             }
         }
         if crate::story::comic_done(self.t) {
@@ -1043,7 +1073,8 @@ impl Game {
     pub fn shot(&self, cols: u16, rows: u16) -> Canvas {
         let mut cv = if self.phase == Phase::Story {
             let mut cv = Canvas::new(cols, rows);
-            crate::story::draw_comic(&mut cv, self.t);
+            let clear = caption_boxes(cv.w, cv.h / 2);
+            crate::story::draw_comic(&mut cv, self.t, &clear);
             cv
         } else {
             self.scene_canvas(cols, rows)
@@ -1197,6 +1228,26 @@ fn draw_help(buf: &mut Buffer, area: Rect, input: &Input) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn comic_captions_stay_clear_of_the_sound_words() {
+        let mut bad = Vec::new();
+        for (cols, rows) in [(100, 32), (120, 36), (160, 48), (200, 50), (240, 60), (300, 70)] {
+            let boxes = super::caption_boxes(cols, rows);
+            let words = crate::story::sound_words(cols, rows * 2, &boxes);
+            for (k, &(bx0, bx1, by0, by1)) in boxes.iter().enumerate() {
+                assert!(bx1 <= cols as f32, "{cols}x{rows}: caption {k} runs off the page");
+                for &(word, cx, cy, r, _) in &words {
+                    let (nx, ny) = (cx.clamp(bx0, bx1), cy.clamp(by0, by1));
+                    let d = ((nx - cx) / r).hypot((ny - cy) * 1.3 / r);
+                    if d <= 1.0 || cy > (rows * 2) as f32 {
+                        bad.push(format!("{cols}x{rows}: caption {k} under {word} ({bx0}..{bx1}, {by0}..{by1} vs {cx:.0},{cy:.0} r {r:.0})"));
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
+
     use super::*;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;

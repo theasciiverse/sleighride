@@ -36,6 +36,11 @@ and rays (HONK!!). Panels slam in 0.9 s apart ("bam-bam-bam"): zoom, white
 flash, the page jolts; sound words pop in starbursts with an overshoot, in
 clear space (over a gutter top, at the foot of the road, in the sky above
 the plough) so they never cover a character, and sized to the panel.
+Gutters are thin (about two columns of white, one of ink; David found the
+first ones far too wide). SNORE! sits in Santa's room; a sound word that
+would land on a caption drops below it, and the middle caption sits flush
+against the far gutter (`game::caption_layout`, tested at six terminal
+sizes).
 Yellow captions: "CHRISTMAS MORNING. SANTA'S OUT COLD." / "THE ELVES
 FOUND THE KEYS!" / "SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!".
 About three seconds; Enter shows the page, then races.
@@ -66,9 +71,11 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (five; `track::courses()`): **Thin Ice**, **Candy Cane
-  Forest** and **Gingerbread Village** (see Next steps), **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
-  and two kickers, see below) and
+- Courses (six; `track::courses()`): **Thin Ice**, **Candy Cane
+  Forest**, **Gingerbread Village** and **The Workshop** (see Next steps),
+  **Frozen Lake** (aurora night, ice cracks, two ice patches; hills and two
+  kickers, see below; the learner course, so no weather or wildlife since
+  2026-10-06, David: "we have overloaded the first track") and
   **Eggnogg** (sunset, a creamy eggnog lake flecked with nutmeg, gold kerbs,
   four ice patches, twistier)
 - Racers (`roster.rs`): Bob (sleigh, player), Holly and Juniper (reindeer),
@@ -196,7 +203,9 @@ boosts, bumps, start result) and a snapshot every 500 ms.
 
 ## Controls
 
-- Steer: Left/Right or A/D; gas: Up or W; brake/reverse: Down or S
+- Steer: Left/Right or A/D, easing in (a tap turns 30%, holding builds
+  to full lock in about a quarter second, `input::ease_steer`; David found
+  the instant full lock too abrupt); gas: Up or W; brake/reverse: Down or S
 - Drift: hold Space or Shift while steering
 - Item: X, E or Ctrl; brake + item drops a present behind you
 - Title screen: Left/Right picks the course
@@ -311,21 +320,35 @@ David wants all of these (2026-10-06), roughly in this order:
         idea: "can we jump over some of the houses?"): fly over its roof
         at speed, or crash into its wall, or steer round it at the edges
         (the rivals go round). Yule Lads lurk by the boxes
-      More course ideas: the workshop itself
-      (indoors?), a glacier under the northern lights. The loop moves on to
+      - [x] **The Workshop** (2026-10-06): indoors (`WORKSHOP` theme,
+        `Theme::indoors`): dark rafters and swaying warm lamps instead of
+        sky, wooden walls rising sheer 40 units out (`Relief::walls`),
+        polished floorboards, red-and-green kerbs, wood shavings off the
+        road, present stacks and nutcracker soldiers instead of pines. Three
+        **conveyor belts** (`Surface::Conveyor`, `Relief::belts`): top speed
+        x1.22, double acceleration, yellow chevrons running along. A ramp up
+        to a 16-high mezzanine and a kicker off its edge. No birds or
+        weather; Yule Lads by the boxes. **Spectators** (`crowd.rs`, David's
+        idea: "spectators in the workshop that also throw packages"): five
+        stands of five elves beside the road, cheering racers past; every
+        ~6 s per stand one lobs a present at an oncoming racer, aimed at
+        where it will be give or take 6 units, landing in 1.1 s with its
+        shadow showing where; bursts like a thrown present
+      More course ideas: a glacier under the northern lights. The loop moves on to
       weather after these two; more courses can come back any time
-- [x] Weather (2026-10-06, `weather.rs`): blizzards on Frozen Lake and
-      Thin Ice: a 22 s calm at the start, then building 6 s, blowing
+- [x] Weather (2026-10-06, `weather.rs`): blizzards on Thin Ice (Frozen
+      Lake had them too until it became the learner course): a 22 s calm at the start, then building 6 s, blowing
       16-26 s, easing 6 s, calm 40-70 s, repeat. While it blows: sight
       shrinks to 30%, everything fades to white, snow streaks across the
       view along the wind, gusts push everyone sideways (up to 5 u/s),
       the wind howls in the band, "BLIZZARD!" as one blows in. Snow
-      tornadoes (one each on Frozen Lake, Thin Ice and Candy Cane Forest)
+      tornadoes (one each on Thin Ice and Candy Cane Forest)
       drift back against the race at 7 u/s weaving across the road; touch
       one and you're thrown up spinning ("WHOOSH!"); rivals steer round
       them. Eggnogg stays calm
-- [x] Wildlife (2026-10-06, `wildlife.rs`): a penguin crossing on Frozen
-      Lake (23% round) and Thin Ice (83%, out on the lake). Every 24 s
+- [x] Wildlife (2026-10-06, `wildlife.rs`): a penguin crossing on Thin Ice
+      (83%, out on the lake; Frozen Lake had one too until it became the
+      learner course). Every 24 s
       (first at 14 s) seven penguins waddle across in single file from
       alternate sides; plough into one and it's bowled into a belly-slide
       away (nobody gets hurt) with a honk, and you lose 28% speed. A
@@ -378,6 +401,11 @@ David wants all of these (2026-10-06), roughly in this order:
       Snegurochka, Mari Lwyd
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
+- [ ] A course selection page (David, 2026-10-06: "once we have a few
+      tracks lined up ... a track selection page at the beginning"): after
+      choosing a racer, a page of the six courses, each with a preview
+      of its look, before the race. Today the title's Left/Right picks
+      the course
 
 ## History
 

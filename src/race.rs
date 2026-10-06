@@ -184,6 +184,8 @@ pub enum Note {
     Yowl,
     /// A Yule Lad snatched this racer's item.
     Stolen(usize),
+    /// Someone in the stands threw a present, from (x, y).
+    Thrown(f32, f32),
     Finished(usize),
 }
 
@@ -199,6 +201,7 @@ pub struct Race {
     pub weather: crate::weather::Weather,
     pub wildlife: crate::wildlife::Wildlife,
     pub folklore: crate::folklore::Folklore,
+    pub crowd: crate::crowd::Crowd,
     pub notes: Vec<Note>,
     /// Finishing order, racer indices.
     pub order: Vec<usize>,
@@ -293,10 +296,12 @@ impl Race {
         let wildlife = crate::wildlife::Wildlife::new(&track);
         let box_spots: Vec<(f32, f32)> = boxes.iter().map(|b| (b.x, b.y)).collect();
         let folklore = crate::folklore::Folklore::new(&track, &box_spots);
+        let crowd = crate::crowd::Crowd::new(&track, seed);
         Race {
             weather,
             wildlife,
             folklore,
+            crowd,
             track,
             racers,
             clock: 0.0,
@@ -460,6 +465,14 @@ impl Race {
                         self.notes.push(Note::Stolen(i));
                     }
                 }
+            }
+        }
+        if !self.crowd.fans.is_empty() && self.clock > COUNTDOWN {
+            let karts: Vec<&Kart> = self.racers.iter().map(|r| &r.kart).collect();
+            for l in self.crowd.step(DT, &karts) {
+                self.notes.push(Note::Thrown(l.x, l.y));
+                // nobody's present: it can hit anyone, the thrower has no racer
+                self.shots.push(Shot { kind: ShotKind::Present, x: l.x, y: l.y, z: l.z, vx: l.vx, vy: l.vy, vz: l.vz, owner: usize::MAX, target: Some(l.at), life: 3.0, age: 0.0 });
             }
         }
         let (px, py) = self.weather.push(DT);
@@ -890,6 +903,7 @@ pub struct Snap {
     weather: crate::weather::Weather,
     wildlife: crate::wildlife::Wildlife,
     folklore: crate::folklore::Folklore,
+    crowd: crate::crowd::Crowd,
     notes: Vec<Note>,
     order: Vec<usize>,
     rival_pace: f32,
@@ -908,6 +922,7 @@ impl Race {
             weather: self.weather.clone(),
             wildlife: self.wildlife.clone(),
             folklore: self.folklore.clone(),
+            crowd: self.crowd.clone(),
             notes: self.notes.clone(),
             order: self.order.clone(),
             rival_pace: self.rival_pace,
@@ -925,6 +940,7 @@ impl Race {
         self.weather = s.weather;
         self.wildlife = s.wildlife;
         self.folklore = s.folklore;
+        self.crowd = s.crowd;
         self.notes = s.notes;
         self.order = s.order;
         self.rival_pace = s.rival_pace;
@@ -1035,7 +1051,7 @@ mod tests {
 
     #[test]
     fn a_snow_tornado_throws_you_up_spinning() {
-        let mut r = Race::new(Track::frozen_lake(), Some(0), 1);
+        let mut r = Race::new(Track::thin_ice(), Some(0), 1);
         r.clock = COUNTDOWN + 1.0;
         let p = r.player().unwrap();
         let tw = r.weather.twisters[0];

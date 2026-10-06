@@ -704,6 +704,26 @@ impl Model {
         Model::finish(g, 6.0, 1.0, [[0.0, 0.0, 0.0]; 2])
     }
 
+    /// A workshop elf in the stands: standing, arms down or waving in the
+    /// air. `look` picks the coat and hat.
+    pub fn fan(look: u8, up: bool) -> Model {
+        let looks = [((40, 140, 70), (214, 38, 46)), ((214, 38, 46), (40, 140, 70)), ((52, 100, 200), (240, 196, 50)), ((150, 60, 160), (40, 140, 70))];
+        let (coat, hat) = looks[look as usize % 4];
+        let e = Elf { hat, coat, hair: (120, 70, 40), paint: coat };
+        let mut g = Grid::new();
+        for side in [-1, 1] {
+            g.block((6, 7), (side, side), (0, 5), (60, 40, 30));
+        }
+        g.elf(7, 6, 0, &e, 0);
+        if up {
+            for side in [-3, 3] {
+                g.line((7.0, side as f32, 8.0), (8.0, side as f32 * 1.4, 15.0), coat);
+                g.set(8, (side as f32 * 1.4).round() as i32, 16, SKIN);
+            }
+        }
+        Model::finish(g, 6.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
     /// A wrapped present: a box with a ribbon cross and a bow on top.
     pub fn gift(paper: Rgb, ribbon: Rgb) -> Model {
         let mut g = Grid::new();

@@ -1,6 +1,7 @@
 mod audio;
 mod auto;
 mod birds;
+mod crowd;
 mod folklore;
 mod game;
 mod input;
@@ -39,7 +40,7 @@ fn main() -> io::Result<()> {
             "sleighride [--race] [--course N] [--as NAME] [--mute] [--host | --join [ID]] [--name NAME]\n\n\
              Sleighride: kart racing with Santa's runaway helpers. In game, H shows the controls.\n\
              --race                      skip the title screen\n\
-             --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest, 5 Gingerbread Village\n\
+             --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest, 5 Gingerbread Village, 6 The Workshop\n\
              --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper or Nutmeg\n\
              --mute                      no sound (F8 toggles sound, M the music)\n\
              --host                      host a race others can join (local network or internet)\n\

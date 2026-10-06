@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn a_blizzard_builds_blows_and_eases() {
-        let t = Track::frozen_lake();
+        let t = Track::thin_ice();
         let mut w = Weather::new(&t, 7);
         let (mut began, mut peak, mut after) = (0, 0.0f32, false);
         for s in 0..(110.0 * 60.0) as usize {
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn a_twister_wanders_the_road_against_the_race() {
-        let t = Track::frozen_lake();
+        let t = Track::thin_ice();
         let mut w = Weather::new(&t, 7);
         let start = t.idx(w.twisters[0].x, w.twisters[0].y).unwrap();
         for _ in 0..600 {

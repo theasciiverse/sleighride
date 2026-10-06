@@ -324,6 +324,11 @@ impl Kart {
         if boosting {
             top *= 1.32;
         }
+        let belt = self.surface == Surface::Conveyor && !self.air;
+        if belt {
+            // the belt carries you along
+            top *= 1.22;
+        }
         // a climb lowers everyone's top speed by the same share, a descent
         // raises it; how quickly you settle to it is your acceleration
         let slope = if self.air { 0.0 } else { track.slope(self.x, self.y, self.travel) * self.speed.signum().max(0.0) };
@@ -333,7 +338,7 @@ impl Kart {
             self.speed -= self.speed * 0.05 * DT;
         } else if c.gas && !c.brake {
             if self.speed < top {
-                let a = st.accel * if boosting { 3.0 } else { 1.0 };
+                let a = st.accel * if boosting { 3.0 } else if belt { 2.0 } else { 1.0 };
                 self.speed += (top - self.speed) * a * DT;
             }
         } else if c.brake {

@@ -70,7 +70,7 @@ impl Birds {
     pub fn new(track: &Track) -> Birds {
         // crows on every so often pine close to the road
         let mut crows = Vec::new();
-        for (i, t) in track.trees.iter().enumerate() {
+        for (i, t) in track.trees.iter().enumerate().filter(|_| !track.theme.indoors) {
             let d = track.dist(t.x, t.y);
             if d < track.half + 16.0 && hash(i as u32) % 5 == 0 && crows.len() < 30 {
                 let z = track.height(t.x, t.y) + 11.0 * t.size * 0.92;
@@ -78,7 +78,9 @@ impl Birds {
             }
         }
         // the first flock comes over soon after the start
-        Birds { crows, flock: Vec::new(), pass: (0.0, 0.0, 0.0, 0.0), pass_t: EVERY - 6.0, passes: 0, t: 0.0 }
+        // no flock indoors
+        let pass_t = if track.theme.indoors { f32::NEG_INFINITY } else { EVERY - 6.0 };
+        Birds { crows, flock: Vec::new(), pass: (0.0, 0.0, 0.0, 0.0), pass_t, passes: 0, t: 0.0 }
     }
 
     /// One step: `racers` are where everyone is; `view` is the camera's

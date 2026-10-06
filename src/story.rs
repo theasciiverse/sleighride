@@ -131,7 +131,8 @@ fn gutter(k: usize, v: f32) -> f32 {
 fn panel_at(x: f32, y: f32, w: f32, h: f32) -> Option<usize> {
     let v = y / h;
     let (g0, g1) = (gutter(0, v) * w, gutter(1, v) * w);
-    let gap = 2.5;
+    // a thin gutter: about two columns of white between the inked edges
+    let gap = 1.0;
     if x < g0 - gap {
         Some(0)
     } else if x > g0 + gap && x < g1 - gap {
@@ -153,6 +154,30 @@ pub fn caption_spots(w: usize, h: usize) -> [(i32, i32, i32); PANELS] {
         ((gutter(0, 0.04) * w + 4.0) as i32, 2, ((gutter(1, 0.04) - gutter(0, 0.04)) * w - 8.0) as i32),
         ((gutter(1, 0.06) * w + 4.0) as i32, 2, ((1.0 - gutter(1, 0.06)) * w - 6.0) as i32),
     ]
+}
+
+/// The sound words once landed: (word, centre x, centre y, radius, text
+/// scale) in pixels. A burst reaches `radius` across and `radius / 1.3` up
+/// and down. Each sits in clear space: Santa's room, the foot of the road,
+/// and the sky above the plough; and below any caption box it would cover
+/// (`clear`: x0, x1, y0, y1 in pixels).
+pub fn sound_words(w: usize, h: usize, clear: &[(f32, f32, f32, f32)]) -> [(&'static str, f32, f32, f32, i32); PANELS] {
+    let (wf, hf) = (w as f32, h as f32);
+    [("SNORE!", 0.30, 0.12), ("VROOOM!", 0.42, 0.88), ("HONK!!", 0.86, 0.3)].map(|(word, fx, fy)| {
+        let mut scale = 2;
+        while scale > 1 && crate::render::big_width(word, scale) as f32 > wf * 0.24 {
+            scale -= 1;
+        }
+        let r = crate::render::big_width(word, scale) as f32 * 0.62 + 3.0 * scale as f32;
+        let (x, mut y) = (wf * fx, hf * fy);
+        for &(x0, x1, y0, y1) in clear {
+            let (nx, ny) = (x.clamp(x0, x1), y.clamp(y0, y1));
+            if ((nx - x) / r).hypot((ny - y) * 1.3 / r) <= 1.0 {
+                y = y.max(y1 + r / 1.3 + 1.0);
+            }
+        }
+        (word, x, y, r, scale)
+    })
 }
 
 /// The middle panel: the road winding up the page, pines either side, and
@@ -285,7 +310,7 @@ fn plough_charge(cv: &mut Canvas, t: f32) {
 
 /// The intro page: three slanted panels slamming in one after another,
 /// the page shaking as each lands, sound words bursting over the gutters.
-pub fn draw_comic(cv: &mut Canvas, t: f32) {
+pub fn draw_comic(cv: &mut Canvas, t: f32, clear: &[(f32, f32, f32, f32)]) {
     let (w, h) = (cv.w, cv.h);
     let (wf, hf) = (w as f32, h as f32);
     // the page: a gutter-white sheet with ink outlines along the gutters
@@ -336,7 +361,6 @@ pub fn draw_comic(cv: &mut Canvas, t: f32) {
             if here.is_some() != right.is_some() {
                 let px = if here.is_some() { x } else { x + 1 };
                 cv.put(px + jolt, y, (18, 14, 22));
-                cv.put(px + jolt + if here.is_some() { -1 } else { 1 }, y, (18, 14, 22));
             }
         }
     }
@@ -353,19 +377,14 @@ pub fn draw_comic(cv: &mut Canvas, t: f32) {
     // the sound words, bursting over the gutters with an overshoot
     // each in clear space: over the top of the first gutter, the foot of
     // the road, and the sky above the plough
-    let words = [("SNORE!", 0.44, 0.12), ("VROOOM!", 0.42, 0.88), ("HONK!!", 0.86, 0.3)];
-    for (k, &(word, fx, fy)) in words.iter().enumerate() {
+    for (k, &(word, x, y, full, scale)) in sound_words(w, h, clear).iter().enumerate() {
         let since = t - BEAT * k as f32 - SLAM * 0.6;
         if since < 0.0 {
             continue;
         }
         let pop = (since / 0.16).min(1.0);
         let overshoot = 1.0 + 0.35 * (1.0 - pop) * (pop * std::f32::consts::PI).sin() * 3.0;
-        let mut scale = 2;
-        while scale > 1 && crate::render::big_width(word, scale) as f32 > wf * 0.24 {
-            scale -= 1;
-        }
-        let r = (crate::render::big_width(word, scale) as f32 * 0.62 + 3.0 * scale as f32) * pop.max(0.3) * overshoot.min(1.6);
-        burst(cv, wf * fx, hf * fy, r, word, scale, 0.4 * k as f32 + since * 0.2);
+        let r = full * pop.max(0.3) * overshoot.min(1.6);
+        burst(cv, x, y, r, word, scale, 0.4 * k as f32 + since * 0.2);
     }
 }

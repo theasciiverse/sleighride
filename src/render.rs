@@ -214,6 +214,9 @@ impl View {
 }
 
 fn sky(cv: &mut Canvas, v: &View, cam: &Camera, th: &Theme, time: f32) {
+    if th.indoors {
+        return ceiling(cv, v, cam, th, time);
+    }
     let hz = v.hz as usize;
     for y in 0..hz.min(cv.h) {
         let t = y as f32 / v.hz.max(1.0);
@@ -249,6 +252,48 @@ fn sky(cv: &mut Canvas, v: &View, cam: &Camera, th: &Theme, time: f32) {
                 c = if snow { mix(th.hills[0], (250, 250, 255), 0.6) } else { mix(th.hills[0], shade(th.hills[0], -26), up / far_h.max(1.0)) };
             }
             cv.px[y * cv.w + x] = c;
+        }
+    }
+}
+
+/// Indoors: dark rafters and beams overhead, warm lamps hanging between.
+fn ceiling(cv: &mut Canvas, v: &View, cam: &Camera, th: &Theme, time: f32) {
+    let hz = (v.hz.max(0.0) as usize).min(cv.h);
+    for y in 0..hz {
+        let t = y as f32 / v.hz.max(1.0);
+        for x in 0..cv.w {
+            let a = cam.angle + ((x as f32 - v.w / 2.0) / v.f).atan();
+            // rafters run across every so many degrees; a beam band lower down
+            let rafter = (a * 9.0).rem_euclid(1.0) < 0.12;
+            let beam = (t - 0.62).abs() < 0.05;
+            let mut c = mix(th.sky[0], th.sky[1], t * t);
+            if rafter || beam {
+                c = mix(c, (24, 14, 8), 0.7);
+            }
+            cv.px[y * cv.w + x] = c;
+        }
+    }
+    // lamps hanging at fixed bearings, glowing and swaying a touch
+    for k in 0..12 {
+        let a = k as f32 / 12.0 * std::f32::consts::TAU + 0.26;
+        let rel = wrap(a - cam.angle);
+        if rel.abs() > 1.2 {
+            continue;
+        }
+        let x = v.w / 2.0 + rel.tan() * v.f;
+        let y = v.hz * (0.45 + 0.05 * (time * 0.8 + k as f32).sin());
+        let r = (v.hz * 0.18).max(2.0);
+        for dy in -(r as i32)..=(r as i32) {
+            for dx in -(r as i32 * 2)..=(r as i32 * 2) {
+                let d = ((dx as f32 / 2.0).powi(2) + (dy as f32).powi(2)).sqrt() / r;
+                if d < 1.0 {
+                    cv.blend(x as i32 + dx, y as i32 + dy, (255, 210, 130), 0.5 * (1.0 - d));
+                }
+            }
+        }
+        cv.put(x as i32, y as i32, (255, 244, 200));
+        for q in 0..(y as i32) {
+            cv.put(x as i32, q, (30, 20, 14));
         }
     }
 }
@@ -296,6 +341,25 @@ fn ground_colour(track: &Track, x: f32, y: f32) -> Rgb {
             c = mix(c, th.lake[2], 0.7);
         }
         return c;
+    }
+    if track.theme.indoors && d <= half {
+        if !track.belts.is_empty() && track.on_belt(i) {
+            // a rubber belt with chevrons running along it
+            let run = ((i as f32 + BELT_T.with(|b| b.get()) * 30.0) / 3.0) as i32;
+            let chev = ((run + (side.abs() * 0.8) as i32) % 3) == 0;
+            return if chev { (230, 190, 40) } else { (48, 46, 52) };
+        }
+        if i < 3 || i > track.len() - 1 {
+            let k = ((x * 0.5).floor() as i32 + (y * 0.5).floor() as i32) & 1;
+            return if k == 0 { (24, 24, 32) } else { (240, 240, 245) };
+        }
+        // polished floorboards running along the lap
+        let board = ((side + 20.0) / 2.2) as i32;
+        let joint = ((i as i32 + board * 7) % 13) == 0;
+        let seam = ((side + 20.0) / 2.2).fract() < 0.1;
+        let shade_k = (hash(board, 3) % 5) as i32 * 4 - 8;
+        let c = shade(th.road, shade_k);
+        return if seam || joint { shade(c, -40) } else { shade(c, fine / 2) };
     }
     if d <= half {
         // the start line: a checker across the road
@@ -493,6 +557,53 @@ fn cane(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog
     }
 }
 
+/// A workshop toy standing by the track: a stack of wrapped presents or a
+/// tall nutcracker soldier.
+#[allow(clippy::too_many_arguments)]
+fn toy(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb) {
+    let f = |c: Rgb| mix(c, haze, fog);
+    let u = scale * size;
+    if u < 0.2 {
+        return;
+    }
+    let pick = (seed * 0.731).sin() > 0.0;
+    if pick {
+        // presents: three boxes stacked, ribbons across
+        let papers = [(214, 38, 46), (52, 120, 220), (40, 160, 80), (240, 196, 50)];
+        let mut base = sy;
+        for k in 0..3 {
+            let (w, h) = ((7.0 - k as f32 * 1.8) * u, (3.6 - k as f32 * 0.6) * u);
+            let off = ((seed + k as f32) * 2.3).sin() * u;
+            let paper = papers[((seed as i32).unsigned_abs() as usize + k) % 4];
+            let ribbon = if paper == (240, 196, 50) { (214, 38, 46) } else { (250, 230, 120) };
+            for y in (base - h) as i32..base as i32 {
+                for x in (sx + off - w / 2.0) as i32..(sx + off + w / 2.0) as i32 {
+                    let rib = (x as f32 - sx - off).abs() < u * 0.5 || (y as f32 - (base - h / 2.0)).abs() < u * 0.4;
+                    cv.put(x, y, f(if rib { ribbon } else { paper }));
+                }
+            }
+            base -= h;
+        }
+    } else {
+        // a nutcracker: black boots, white trousers, red coat, a tall black
+        // hat with a gold plume
+        let w = 2.6 * u;
+        let parts: [(f32, f32, Rgb); 6] = [(0.0, 1.4, (24, 20, 28)), (1.4, 4.2, (246, 244, 240)), (4.2, 8.0, (200, 30, 44)), (8.0, 10.0, (236, 190, 150)), (10.0, 13.5, (24, 20, 28)), (13.5, 14.5, (250, 206, 60))];
+        for (a, b, c) in parts {
+            for y in (sy - b * u) as i32..(sy - a * u) as i32 {
+                let half = if c == (24, 20, 28) && a > 9.0 { w * 0.45 } else { w / 2.0 };
+                for x in (sx - half) as i32..(sx + half) as i32 {
+                    cv.put(x, y, f(c));
+                }
+            }
+        }
+        for y in (sy - 7.6 * u) as i32..(sy - 4.6 * u) as i32 {
+            cv.put((sx - w / 2.0 - u * 0.5) as i32, y, f((250, 206, 60)));
+            cv.put((sx + w / 2.0 + u * 0.3) as i32, y, f((250, 206, 60)));
+        }
+    }
+}
+
 /// A gingerbread house: brown walls with icing trim, a snowy pitched roof
 /// with an icing zigzag, candy buttons and warm lit windows.
 #[allow(clippy::too_many_arguments)]
@@ -616,11 +727,13 @@ struct Critters {
     bear_reared: Model,
     cat: [Model; 3],
     lad: Model,
+    /// Spectators: four looks, arms down and up.
+    fans: [[Model; 2]; 4],
 }
 
 fn critters() -> &'static Critters {
     static C: OnceLock<Critters> = OnceLock::new();
-    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true), cat: std::array::from_fn(Model::yule_cat), lad: Model::yule_lad() })
+    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true), cat: std::array::from_fn(Model::yule_cat), lad: Model::yule_lad(), fans: std::array::from_fn(|l| [Model::fan(l as u8, false), Model::fan(l as u8, true)]) })
 }
 
 fn gift() -> &'static Model {
@@ -924,9 +1037,16 @@ enum Thing {
     Cat,
     Lad(usize),
     Cottage(usize),
+    Fan(usize),
+}
+
+thread_local! {
+    /// Time for things on the ground that move, like conveyor belts.
+    static BELT_T: std::cell::Cell<f32> = const { std::cell::Cell::new(0.0) };
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
+    BELT_T.with(|b| b.set(s.time));
     let v = View::new(cv);
     let r = s.race;
     let th = &r.track.theme;
@@ -1001,6 +1121,9 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for (i, &(cx, cy, _, _)) in r.track.cottages.iter().enumerate() {
         things.push((depth(cx, cy), cx, cy, Thing::Cottage(i)));
     }
+    for (i, f) in r.crowd.fans.iter().enumerate() {
+        things.push((depth(f.x, f.y), f.x, f.y, Thing::Fan(i)));
+    }
     for &(px, py) in &r.track.poles {
         things.push((depth(px, py), px, py, Thing::Pole));
     }
@@ -1027,7 +1150,9 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
             Thing::Tree(size) => {
                 let w = TREE_H * size * scale * 0.6;
                 if sx + w > 0.0 && sx - w < v.w {
-                    if th.canes {
+                    if th.indoors {
+                        toy(cv, sx, sy, scale, size, x + y * 3.0, fog, haze);
+                    } else if th.canes {
                         cane(cv, sx, sy, scale, size, x, fog, haze);
                     } else if th.houses && hash(x as i32, y as i32) % 5 < 3 {
                         house(cv, sx, sy, scale, size, x + y, fog, haze, s.time);
@@ -1164,6 +1289,18 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                         _ => pose.sy -= ((s.time * 14.0).sin().abs()) * pose.px * 2.0,
                     }
                     critters().lad.draw(cv, &pose);
+                }
+            }
+            Thing::Fan(i) => {
+                let f = &r.crowd.fans[i];
+                // workshop elves are small, but not that small
+                if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, ground, f.heading, 2.4, haze) {
+                    let up = f.cheer > 0.0;
+                    if up {
+                        // bouncing up and down with excitement
+                        pose.sy -= ((s.time * 12.0 + i as f32).sin().abs()) * pose.px * 2.0;
+                    }
+                    critters().fans[f.look as usize % 4][up as usize].draw(cv, &pose);
                 }
             }
             Thing::Pole => {
@@ -1413,5 +1550,6 @@ pub fn surface_name(s: Surface) -> &'static str {
         Surface::Ice => "ice",
         Surface::Cream => "cream",
         Surface::BlackIce => "black ice",
+        Surface::Conveyor => "conveyor",
     }
 }

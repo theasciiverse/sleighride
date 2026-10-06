@@ -12,6 +12,10 @@
 //! impossible; there the gas latches (Up starts it, Down stops it) and
 //! Space toggles a drift, while steering counts as held while repeats keep
 //! arriving.
+//!
+//! Steering keys ease in rather than snapping to full lock: a tap turns
+//! gently, holding builds to full lock over about a quarter of a second,
+//! and letting go settles back quickly. The stick is analogue already.
 
 use crate::kart::Controls;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode};
@@ -19,6 +23,11 @@ use std::time::{Duration, Instant};
 
 const PRE_REPEAT: Duration = Duration::from_millis(500);
 const REPEAT_GAP: Duration = Duration::from_millis(110);
+/// Keyboard steering: where a press starts, how fast it builds to full
+/// lock, and how fast it settles back (per second).
+const STEER_START: f32 = 0.3;
+const STEER_RISE: f32 = 3.2;
+const STEER_FALL: f32 = 8.0;
 #[cfg(feature = "gamepad")]
 const STICK_DEADZONE: f32 = 0.15;
 
@@ -96,6 +105,25 @@ pub struct Input {
     gilrs: Option<gilrs::Gilrs>,
     pub pad_name: Option<String>,
     pad: Pad,
+    /// Keyboard steering as it eases, and when it was last worked out.
+    key_steer: f32,
+    last: Option<Instant>,
+}
+
+/// One step of keyboard steering easing from `now` towards `target` (-1, 0
+/// or 1) over `dt` seconds.
+fn ease_steer(now: f32, target: f32, dt: f32) -> f32 {
+    if target == 0.0 {
+        let fall = STEER_FALL * dt;
+        return if now.abs() <= fall { 0.0 } else { now - fall * now.signum() };
+    }
+    if now * target < STEER_START {
+        // pressed from straight, or turning the other way: a gentle start
+        // this way (swinging back through straight first if need be)
+        let back = now - STEER_FALL * dt * now.signum();
+        return if now * target < 0.0 && back * now > 0.0 { back } else { STEER_START * target };
+    }
+    (now + STEER_RISE * dt * target).clamp(-1.0, 1.0)
 }
 
 impl Input {
@@ -111,6 +139,8 @@ impl Input {
             gilrs: None,
             pad_name: None,
             pad: Pad::default(),
+            key_steer: 0.0,
+            last: None,
         }
     }
 
@@ -246,6 +276,7 @@ impl Input {
         self.gas_latch = false;
         self.drift_latch = false;
         self.item_edge = false;
+        self.key_steer = 0.0;
     }
 
     pub fn controls(&mut self, now: Instant) -> Controls {
@@ -253,13 +284,12 @@ impl Input {
         let held = |k: Key| self.holds[k as usize].held(self.exact, now);
         let keys_steer = held(Key::Right) as i8 as f32 - held(Key::Left) as i8 as f32;
         let pad_dpad = self.pad.right as i8 as f32 - self.pad.left as i8 as f32;
-        let steer = if keys_steer != 0.0 {
-            keys_steer
-        } else if pad_dpad != 0.0 {
-            pad_dpad
-        } else {
-            self.pad.steer
-        };
+        let dt = self.last.map_or(0.0, |l| now.saturating_duration_since(l).as_secs_f32()).min(0.05);
+        self.last = Some(now);
+        // keys and the d-pad ease in; the stick is used as it is
+        let digital = if keys_steer != 0.0 { keys_steer } else { pad_dpad };
+        self.key_steer = ease_steer(self.key_steer, digital, dt);
+        let steer = if digital != 0.0 || self.key_steer != 0.0 { self.key_steer } else { self.pad.steer };
         let (gas, drift) = if self.exact { (held(Key::Gas), held(Key::Drift)) } else { (self.gas_latch, self.drift_latch) };
         Controls {
             steer: steer.clamp(-1.0, 1.0),
@@ -268,5 +298,39 @@ impl Input {
             drift: drift || self.pad.drift,
             item,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hold(from: f32, target: f32, secs: f32) -> f32 {
+        let mut s = from;
+        for _ in 0..(secs * 60.0) as usize {
+            s = ease_steer(s, target, 1.0 / 60.0);
+        }
+        s
+    }
+
+    #[test]
+    fn steering_keys_ease_in_and_settle_back() {
+        // a tap turns gently
+        let tap = hold(0.0, 1.0, 1.0 / 60.0);
+        assert!(tap > 0.2 && tap < 0.4, "tap {tap}");
+        // it builds through the steps in between
+        let mid = hold(0.0, 1.0, 0.12);
+        assert!(mid > 0.5 && mid < 0.9, "after 0.12 s {mid}");
+        assert_eq!(hold(0.0, 1.0, 0.3), 1.0, "full lock held");
+        // let go: straight again in well under a quarter second
+        assert_eq!(hold(1.0, 0.0, 0.15), 0.0);
+        // the other way: swings back through straight, never a jump
+        let mut s = 1.0f32;
+        for _ in 0..60 {
+            let next = ease_steer(s, -1.0, 1.0 / 60.0);
+            assert!((next - s).abs() <= STEER_START + STEER_FALL / 60.0 + 0.01, "jump {s} to {next}");
+            s = next;
+        }
+        assert_eq!(s, -1.0);
     }
 }
