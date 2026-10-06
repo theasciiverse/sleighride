@@ -493,6 +493,69 @@ fn cane(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog
     }
 }
 
+/// A gingerbread house: brown walls with icing trim, a snowy pitched roof
+/// with an icing zigzag, candy buttons and warm lit windows.
+#[allow(clippy::too_many_arguments)]
+fn house(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb, time: f32) {
+    let w = 9.0 * size * scale;
+    let wall = 5.5 * size * scale;
+    let roof = 4.5 * size * scale;
+    if w < 2.0 {
+        return;
+    }
+    let f = |c: Rgb| mix(c, haze, fog);
+    let (x0, x1) = (sx - w / 2.0, sx + w / 2.0);
+    let top = sy - wall;
+    let buttons = [(226, 40, 60), (60, 170, 90), (250, 206, 60)];
+    // the walls
+    for y in top as i32..sy as i32 {
+        for x in x0 as i32..x1 as i32 {
+            let u = (x as f32 - x0) / w;
+            let mut c = if u > 0.55 { (150, 92, 46) } else { (176, 110, 56) };
+            // icing along the bottom and the corners
+            if (sy - y as f32) < scale * 0.5 || u < 0.04 || u > 0.96 {
+                c = (250, 250, 252);
+            }
+            cv.put(x, y, f(c));
+        }
+    }
+    // two warm windows and a door
+    let flicker = 0.85 + 0.15 * (time * 3.0 + seed).sin();
+    let win = |cv: &mut Canvas, u0: f32, u1: f32, v0: f32, v1: f32, c: Rgb| {
+        for y in (top + wall * v0) as i32..(top + wall * v1) as i32 {
+            for x in (x0 + w * u0) as i32..(x0 + w * u1) as i32 {
+                cv.put(x, y, f(c));
+            }
+        }
+    };
+    let lit = ((255.0 * flicker) as u8, (214.0 * flicker) as u8, 120);
+    win(cv, 0.12, 0.3, 0.25, 0.55, lit);
+    win(cv, 0.7, 0.88, 0.25, 0.55, lit);
+    win(cv, 0.42, 0.58, 0.45, 1.0, (110, 60, 30));
+    // candy buttons in a row
+    for k in 0..4 {
+        let bx = x0 + w * (0.15 + k as f32 * 0.23);
+        let by = top + wall * 0.12;
+        let r = (scale * 0.35).max(0.5);
+        for dy in -(r as i32)..=r as i32 {
+            for dx in -(r as i32)..=r as i32 {
+                cv.put(bx as i32 + dx, by as i32 + dy, f(buttons[(k + seed as usize) % 3]));
+            }
+        }
+    }
+    // the roof: snow on top, an icing zigzag along the eaves
+    for row in 0..roof as i32 {
+        let k = row as f32 / roof;
+        let half = w * 0.58 * k;
+        let y = top - roof + row as f32;
+        for x in (sx - half) as i32..(sx + half) as i32 {
+            let zig = ((x as f32 - sx).abs() / (scale * 0.8)).fract() < 0.5;
+            let c = if k > 0.85 && zig { (250, 250, 252) } else if k < 0.6 { (244, 248, 255) } else { (120, 70, 40) };
+            cv.put(x, y as i32, f(c));
+        }
+    }
+}
+
 /// A grain of snow or a spark, in the world.
 #[derive(Clone, Copy)]
 pub struct Particle {
@@ -860,6 +923,7 @@ enum Thing {
     Bear,
     Cat,
     Lad(usize),
+    Cottage(usize),
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
@@ -934,6 +998,9 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for (i, tw) in r.weather.twisters.iter().enumerate() {
         things.push((depth(tw.x, tw.y), tw.x, tw.y, Thing::Twister(i)));
     }
+    for (i, &(cx, cy, _, _)) in r.track.cottages.iter().enumerate() {
+        things.push((depth(cx, cy), cx, cy, Thing::Cottage(i)));
+    }
     for &(px, py) in &r.track.poles {
         things.push((depth(px, py), px, py, Thing::Pole));
     }
@@ -962,6 +1029,8 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 if sx + w > 0.0 && sx - w < v.w {
                     if th.canes {
                         cane(cv, sx, sy, scale, size, x, fog, haze);
+                    } else if th.houses && hash(x as i32, y as i32) % 5 < 3 {
+                        house(cv, sx, sy, scale, size, x + y, fog, haze, s.time);
                     } else {
                         pine(cv, sx, sy, scale, size, fog, haze);
                     }
@@ -1065,6 +1134,11 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                     shadow(cv, pose.sx, pose.sy, sc, 4.0);
                     m.draw(cv, &pose);
                 }
+            }
+            Thing::Cottage(i) => {
+                let (_, _, size, _) = r.track.cottages[i];
+                shadow(cv, sx, sy, scale, 9.0 * size);
+                house(cv, sx, sy, scale, size, i as f32 * 7.0 + 3.0, fog, haze, s.time);
             }
             Thing::Cat => {
                 let c = r.folklore.cat.unwrap();

@@ -45,6 +45,8 @@ pub struct Theme {
     pub birds: (u8, u8, u8),
     /// Giant candy canes stand where pines would.
     pub canes: bool,
+    /// Gingerbread houses stand among the pines.
+    pub houses: bool,
 }
 
 pub const FROZEN: Theme = Theme {
@@ -61,6 +63,7 @@ pub const FROZEN: Theme = Theme {
     aurora: true,
     birds: (226, 232, 248),
     canes: false,
+    houses: false,
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -78,6 +81,7 @@ pub const EGGNOGG: Theme = Theme {
     aurora: false,
     birds: (52, 30, 52),
     canes: false,
+    houses: false,
 };
 
 #[derive(Clone, Copy)]
@@ -120,6 +124,8 @@ pub struct Track {
     pub lake_spans: Vec<(usize, usize)>,
     /// Holes in the ice: centre and radius.
     pub holes: Vec<(f32, f32, f32)>,
+    /// Cottages in the road: centre, size, and which way they face.
+    pub cottages: Vec<(f32, f32, f32, f32)>,
     /// Weather: whether blizzards blow here, and how many snow tornadoes.
     pub blizzards: bool,
     pub twisters: usize,
@@ -132,6 +138,11 @@ pub struct Track {
     #[cfg_attr(not(test), allow(dead_code))]
     pub relief: &'static Relief,
 }
+
+/// A cottage's height and half-width per unit of size (a gingerbread
+/// house is drawn ten units tall and nine wide at size 1).
+pub const COTTAGE_TALL: f32 = 10.0;
+pub const COTTAGE_HALF: f32 = 4.5;
 
 /// The lie of the land: heights along the lap as (fraction of the lap,
 /// height) keys eased between, kickers that throw you into the air, and the
@@ -149,11 +160,14 @@ pub struct Relief {
     pub on_lake: &'static [(f32, f32)],
     /// Holes in the ice: (fraction of the lap, offset right, radius).
     pub holes: &'static [(f32, f32, f32)],
+    /// Little houses standing in the road, to jump over (or go round):
+    /// (fraction of the lap, size).
+    pub cottages: &'static [(f32, f32)],
     pub lake: f32,
 }
 
 #[cfg(test)]
-const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], lake: 0.0 };
+const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], cottages: &[], lake: 0.0 };
 
 /// Eggnogg: up from the start to a high ridge in the north, a kicker off
 /// its edge down into the eggnog basin, rolling hills through the hairpins
@@ -181,6 +195,7 @@ const EGGNOGG_RELIEF: Relief = Relief {
     inlets: &[(0.7765, 22)],
     on_lake: &[],
     holes: &[],
+    cottages: &[],
     lake: -20.0,
 };
 
@@ -215,6 +230,7 @@ const THIN_ICE_RELIEF: Relief = Relief {
         (0.905, 6.5, 3.8),
         (0.92, -6.0, 3.5),
     ],
+    cottages: &[],
     lake: 0.0,
 };
 
@@ -250,6 +266,7 @@ pub const CANDY: Theme = Theme {
     aurora: false,
     birds: (72, 40, 84),
     canes: true,
+    houses: false,
 };
 
 /// Candy Cane Forest: winding through the canes, over a big hill with a
@@ -277,6 +294,7 @@ const CANDY_RELIEF: Relief = Relief {
     inlets: &[],
     on_lake: &[],
     holes: &[],
+    cottages: &[],
     lake: -14.0,
 };
 
@@ -299,6 +317,70 @@ const CANDY_PTS: &[(f32, f32)] = &[
     (340.0, 885.0),
 ];
 
+/// Gingerbread Village: an amber evening, icing kerbs, a frozen syrup pond.
+pub const GINGER: Theme = Theme {
+    road: (182, 168, 166),
+    kerb: [(250, 250, 252), (232, 120, 152)],
+    powder: [(232, 226, 236), (250, 246, 250)],
+    bank: [(214, 204, 216), (255, 252, 255)],
+    lake: [(196, 120, 50), (226, 162, 82), (255, 232, 182)],
+    flecks: false,
+    ice: (214, 234, 246),
+    sky: [(30, 30, 82), (255, 170, 92)],
+    haze: (250, 212, 176),
+    hills: [(156, 112, 140), (94, 62, 92)],
+    aurora: false,
+    birds: (52, 34, 46),
+    canes: false,
+    houses: true,
+};
+
+/// Gingerbread Village: through the village and up over a hill with a
+/// kicker on top, round the syrup pond.
+const GINGER_RELIEF: Relief = Relief {
+    keys: &[
+        (0.0, 0.0),
+        (0.08, 4.0),
+        (0.16, 1.0),
+        (0.26, 9.0),
+        (0.33, 14.0),
+        // a steep drop off the hilltop kicker, a cottage in the dip below:
+        // fly over its roof
+        (0.345, 7.0),
+        (0.4, 4.0),
+        (0.5, 7.0),
+        (0.6, 2.0),
+        (0.7, 8.0),
+        (0.8, 3.0),
+        (0.9, 5.0),
+    ],
+    kickers: &[(0.33, 3.0, 22)],
+    inlets: &[],
+    on_lake: &[],
+    holes: &[],
+    cottages: &[(0.3385, 0.42)],
+    lake: -10.0,
+};
+
+const GINGER_PTS: &[(f32, f32)] = &[
+    (200.0, 860.0),
+    (140.0, 660.0),
+    (210.0, 500.0),
+    (360.0, 470.0),
+    (420.0, 330.0),
+    (300.0, 190.0),
+    (470.0, 120.0),
+    (660.0, 150.0),
+    (720.0, 300.0),
+    (860.0, 260.0),
+    (900.0, 450.0),
+    (760.0, 560.0),
+    (860.0, 720.0),
+    (720.0, 880.0),
+    (540.0, 800.0),
+    (400.0, 890.0),
+];
+
 /// A bright, overcast winter morning.
 pub const MORNING: Theme = Theme {
     road: (172, 178, 198),
@@ -314,6 +396,7 @@ pub const MORNING: Theme = Theme {
     aurora: false,
     birds: (44, 44, 64),
     canes: false,
+    houses: false,
 };
 
 /// Frozen Lake: the start straight climbs a ridge along the west shore to a
@@ -341,12 +424,19 @@ const FROZEN_RELIEF: Relief = Relief {
     inlets: &[],
     on_lake: &[],
     holes: &[],
+    cottages: &[],
     lake: -26.0,
 };
 
 /// The courses, in menu order.
-pub fn courses() -> [(&'static str, fn() -> Track); 4] {
-    [("Frozen Lake", Track::frozen_lake), ("Eggnogg", Track::eggnogg), ("Thin Ice", Track::thin_ice), ("Candy Cane Forest", Track::candy_cane_forest)]
+pub fn courses() -> [(&'static str, fn() -> Track); 5] {
+    [
+        ("Frozen Lake", Track::frozen_lake),
+        ("Eggnogg", Track::eggnogg),
+        ("Thin Ice", Track::thin_ice),
+        ("Candy Cane Forest", Track::candy_cane_forest),
+        ("Gingerbread Village", Track::gingerbread_village),
+    ]
 }
 
 /// Control points of the first course, Frozen Lake: start straight running
@@ -584,6 +674,13 @@ impl Track {
         t
     }
 
+    pub fn gingerbread_village() -> Track {
+        let mut t = Track::build("Gingerbread Village", GINGER_PTS, 14.0, GINGER, &GINGER_RELIEF);
+        t.add_ice(&[(0.12, -4.0, 6.0), (0.64, 3.0, 7.0)]);
+        t.yule_lads = true;
+        t
+    }
+
     pub fn thin_ice() -> Track {
         let mut t = Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF);
         t.blizzards = true;
@@ -649,7 +746,12 @@ impl Track {
         let ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
+        for &(f, size) in relief.cottages {
+            let i = (f * n as f32) as usize;
+            let (px, py) = t.pts[i];
+            t.cottages.push((px, py, size, t.heading_at(i)));
+        }
         for &(f, side, r) in relief.holes {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];
@@ -758,6 +860,16 @@ impl Track {
     pub fn out_on_lake(&self, i: usize) -> bool {
         let n = self.len();
         self.lake_spans.iter().any(|&(a, b)| (i + n - a) % n <= (b + n - a) % n)
+    }
+
+    /// A cottage in the road whose walls take in (x, y) at height `z`:
+    /// its centre, if so.
+    pub fn cottage_at(&self, x: f32, y: f32, z: f32, reach: f32) -> Option<(f32, f32)> {
+        self.cottages.iter().find_map(|&(cx, cy, size, _)| {
+            let tall = COTTAGE_TALL * size;
+            let r = COTTAGE_HALF * size + reach;
+            ((x - cx).hypot(y - cy) < r && z < self.height(cx, cy) + tall).then_some((cx, cy))
+        })
     }
 
     /// Whether a point is in a hole in the ice.

@@ -77,7 +77,8 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         .chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5)))
         .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 3.0)))
         .chain(r.wildlife.penguins.iter().filter(|p| p.gait == crate::wildlife::Gait::Waddling).map(|p| (p.x, p.y, 3.0)))
-        .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 8.0)));
+        .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 8.0)))
+        .chain(r.track.cottages.iter().map(|&(x, y, size, _)| (x, y, crate::track::COTTAGE_HALF * size + 3.0)));
     for (hx, hy, clear) in hazards {
         // steer round dropped presents and holes in the ice ahead
         let ti = r.track.idx(hx, hy);
@@ -121,6 +122,7 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 5.0)))
         .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 1.5)))
         .chain(r.traps.iter().map(|t| (t.x, t.y, 2.6)))
+        .chain(r.track.cottages.iter().map(|&(x, y, size, _)| (x, y, crate::track::COTTAGE_HALF * size + 2.5)))
         .chain(r.folklore.cat.iter().filter(|c| !matches!(c.state, crate::folklore::Cat::Sitting(_))).map(|c| (c.x, c.y, 5.5)))
         .chain(r.folklore.lads.iter().filter(|_| me.item.is_some()).filter(|l| l.state == crate::folklore::Lad::Lurking).map(|l| (l.x, l.y, 7.5)));
     let (hc, hs) = (k.travel.cos(), k.travel.sin());

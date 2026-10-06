@@ -438,6 +438,16 @@ impl Kart {
             }
             return;
         }
+        // a cottage in the road: over its roof, or into its wall
+        if let Some((cx, cy)) = track.cottage_at(nx, ny, self.z, KART_R) {
+            let (ax, ay) = (nx - cx, ny - cy);
+            let l = ax.hypot(ay).max(1e-3);
+            self.deflect(ax / l, ay / l, Event::Tree);
+            if self.speed.abs() > 20.0 && !self.stunned() {
+                self.stun(0.9, 1.0);
+            }
+            return;
+        }
         // pines are taller than any jump, but a sleigh well up clears the
         // little ones
         let up = self.z - track.height(nx, ny);
@@ -653,6 +663,35 @@ mod tests {
         assert_eq!(k.speed, 0.0);
         assert!(!t.in_hole(k.x, k.y), "hauled out");
         assert!(k.stunned());
+    }
+
+    #[test]
+    fn fly_over_the_cottage_or_into_its_wall() {
+        let mut t = Track::gingerbread_village();
+        t.trees.clear();
+        let n = t.len();
+        let lip = (0.33 * n as f32) as usize;
+        let run = |speed: f32, from: usize| -> (bool, bool) {
+            let i = from;
+            let (x, y) = t.pts[i];
+            let mut k = Kart::new(x, y, t.heading_at(i), crate::roster::ROSTER[0].stats);
+            k.settle(&t);
+            k.speed = speed;
+            let (mut crashed, mut past) = (false, false);
+            for _ in 0..(2.5 / DT) as usize {
+                let j = t.idx(k.x, k.y).unwrap();
+                let (cx, cy) = t.pts[t.ahead(j, 12)];
+                let err = wrap((cy - k.y).atan2(cx - k.x) - k.heading);
+                k.step(Controls { gas: true, steer: (err * 3.0).clamp(-1.0, 1.0), ..Default::default() }, &t);
+                crashed |= k.events.contains(&Event::Tree);
+                past |= t.idx(k.x, k.y).unwrap() > lip + 40;
+            }
+            (crashed, past)
+        };
+        assert_eq!(run(64.0, lip - 50), (false, true), "at speed: over the roof");
+        // rolling down off the lip slowly: straight into the wall
+        let (crashed, _) = run(12.0, lip + 3);
+        assert!(crashed, "crawling: into the wall");
     }
 
     #[test]

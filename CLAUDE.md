@@ -66,8 +66,8 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (four; `track::courses()`): **Thin Ice** and **Candy Cane
-  Forest** (see Next steps), **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
+- Courses (five; `track::courses()`): **Thin Ice**, **Candy Cane
+  Forest** and **Gingerbread Village** (see Next steps), **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
   and two kickers, see below) and
   **Eggnogg** (sunset, a creamy eggnog lake flecked with nutmeg, gold kerbs,
   four ice patches, twistier)
@@ -124,7 +124,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; network races for up to six (`--host`, `--join [ID]`); session logging per the Asciiverse convention
-- 46 tests, including a full six-racer race on each course (winner to last
+- 47 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -302,7 +302,16 @@ David wants all of these (2026-10-06), roughly in this order:
         (`Theme::canes`, hooks turned either way), mint kerbs, pink-tinged
         snow, a frozen strawberry-milk lake with sprinkles; winding and
         hilly with a kicker off a big hilltop and two ice patches
-      More course ideas: a gingerbread village, the workshop itself
+      - [x] **Gingerbread Village** (2026-10-06): an amber evening
+        (`GINGER` theme), gingerbread houses among the pines
+        (`Theme::houses`: icing-trimmed roofs, candy buttons, flickering
+        lit windows), pink-and-white icing kerbs, a frozen syrup pond.
+        Off the hilltop kicker the road drops steeply into a dip with a
+        **cottage standing in the road** (`Relief::cottages`, David's
+        idea: "can we jump over some of the houses?"): fly over its roof
+        at speed, or crash into its wall, or steer round it at the edges
+        (the rivals go round). Yule Lads lurk by the boxes
+      More course ideas: the workshop itself
       (indoors?), a glacier under the northern lights. The loop moves on to
       weather after these two; more courses can come back any time
 - [x] Weather (2026-10-06, `weather.rs`): blizzards on Frozen Lake and
