@@ -23,7 +23,7 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 const ALPN: &[u8] = b"sleighride/1";
 const MAX_FRAME: usize = 1 << 20;
-const MAX_JOINERS: usize = 5;
+const MAX_JOINERS: usize = 7;
 /// Both sides ping every 2 s, so a peer silent this long has crashed or
 /// lost the network; iroh's default is much longer.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(6);
@@ -203,7 +203,7 @@ async fn serve_client(incoming: iroh::endpoint::Incoming, id: ClientId, clients:
         full
     };
     if full {
-        let _ = write_msg(&mut send, &Msg::Reject { reason: "the race is full (six racers)".into() }).await;
+        let _ = write_msg(&mut send, &Msg::Reject { reason: "the race is full (eight racers)".into() }).await;
         let _ = send.finish();
         tokio::time::sleep(Duration::from_millis(300)).await;
         return;

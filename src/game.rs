@@ -943,6 +943,8 @@ impl Game {
             crate::model::Ride::Snowmobile => audio::Voice::Motor,
             crate::model::Ride::Toboggan => audio::Voice::Runners,
             crate::model::Ride::Skis => audio::Voice::Skis,
+            crate::model::Ride::Goat => audio::Voice::Hooves,
+            crate::model::Ride::Broom => audio::Voice::Runners,
             crate::model::Ride::Plough => audio::Voice::Diesel,
         };
         let heard = |k: &crate::kart::Kart, ride, gain: f32| audio::Ride { voice: voice(ride), speed: if k.air { k.speed * 0.2 } else { k.speed }, gain };
@@ -1086,7 +1088,7 @@ fn santa_says(place: u8, caught: u8) -> &'static str {
         (1, 0) => "Santa: \"...Fine. FINE. You're still polishing the runners.\"",
         (1, _) => "Santa: \"First place AND the naughty list. Impressive.\"",
         (_, 2..) => "Santa: \"Coal. All of you. Coal.\"",
-        (6, _) => "Santa: \"Last? With MY reindeer? Back to the stables.\"",
+        (p, _) if p as usize == ROSTER.len() => "Santa: \"Last? With MY reindeer? Back to the stables.\"",
         _ => "Santa: \"Back in the workshop by breakfast, the lot of you.\"",
     }
 }
@@ -1263,7 +1265,7 @@ mod tests {
         assert_eq!(g.phase, Phase::Race);
         let p = g.race.player().unwrap();
         assert_eq!(ROSTER[g.race.racers[p].who].name, "Sprocket");
-        assert_eq!(g.race.racers[p].place, 6, "the player starts at the back");
+        assert_eq!(g.race.racers[p].place as usize, ROSTER.len(), "the player starts at the back");
         assert!(g.race.racers[0].ai.is_some(), "Bob races as a rival");
     }
 

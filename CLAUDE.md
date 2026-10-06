@@ -207,6 +207,8 @@ boosts, bumps, start result) and a snapshot every 500 ms.
 | Sprocket | Snowmobile | fast, heavy, wide line, slow drift charge |
 | Pip | Toboggan | fast, light, quick drift charge |
 | Nutmeg | Skis | highest top speed, twitchy, little grip |
+| Tomte | Julbocken, the straw Yule goat | sturdy, steady |
+| Befana | Her broomstick | flies low: powder and cream hardly slow her |
 | Santa (chaser) | Snowplough | 1.3x anyone, unstoppable |
 
 A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
@@ -332,7 +334,21 @@ David wants all of these (2026-10-06), roughly in this order:
       both, race started, guest's racer driven by the guest).
       **Needs David:** a race between two real machines, and one across
       the internet (relay path), haven't been tried
-- [ ] Folklore racers and hazards (see the backlog)
+- [x] Folklore racers (2026-10-06): **Tomte on Julbocken** (the straw
+      Yule goat, ribbon-bound, curling horns; a bearded Tomte riding;
+      sturdy) and **Befana on her broomstick** (flying low: deep powder
+      and cream barely slow her, `Stats::hover`, but low enough to dip
+      into holes in the ice). Races now have eight racers; network races
+      up to eight players. Balance measured again (each averages within
+      1.6 places of the middle on all four courses).
+      Found and fixed on the way: rivals fell into Thin Ice's holes ~20
+      times a race, as their line only shifted far ahead; they now swerve
+      from anything on their path just ahead (holes, penguins, the bear,
+      tornadoes, dropped presents), looking further on slippery ice.
+- [ ] Folklore hazards still to come: the Yule Cat (Jolakotturinn),
+      Krampus as a second chaser, the Yule Lads stealing items
+- [ ] The intro as an action-comic page (David, 2026-10-06): punchier,
+      shorter text, three panels revealed one by one
 
 ## History
 

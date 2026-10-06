@@ -57,6 +57,9 @@ pub struct Stats {
     pub charge: f32,
     /// Who shoves whom in a bump.
     pub weight: f32,
+    /// Flies low (Befana's broom): powder and cream hardly slow it. (Low
+    /// enough to dip into a hole in the ice like anyone else, though.)
+    pub hover: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -218,6 +221,7 @@ impl Kart {
         self.drive(c, track);
         self.vertical(track);
         if !self.air && !self.stunned() && !self.plough && track.in_hole(self.x, self.y) {
+            // even a broom flies low enough to dip into open water
             self.splash(track);
         }
     }
@@ -315,7 +319,7 @@ impl Kart {
         let boosting = self.boost > 0.0;
         let mut top = st.top;
         if powder && !boosting {
-            top *= 0.55;
+            top *= if st.hover { 0.85 } else { 0.55 };
         }
         if boosting {
             top *= 1.32;
@@ -385,7 +389,7 @@ impl Kart {
         let rate = if self.drift != 0 {
             let d = self.drift as f32;
             let inward = c.steer * d;
-            if !powder && !self.air {
+            if (!powder || st.hover) && !self.air {
                 let before = tier_of(self.charge);
                 self.charge += DT * st.charge * (1.0 + 0.5 * inward.max(0.0));
                 let after = tier_of(self.charge);

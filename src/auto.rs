@@ -110,6 +110,38 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         }
     }
     let mut c = follow(r, k.x, k.y, k.heading, k.speed, k.drift, me.idx, offset.clamp(-10.0, 10.0));
+    // and swerve from anything right on the path just ahead
+    // (Befana dodges holes too: skimming over one still costs her)
+    let close = r
+        .track
+        .holes
+        .iter()
+        .map(|&(x, y, rad)| (x, y, rad + 3.0))
+        .chain(r.wildlife.penguins.iter().filter(|p| p.gait == crate::wildlife::Gait::Waddling).map(|p| (p.x, p.y, 2.2)))
+        .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 5.0)))
+        .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 1.5)))
+        .chain(r.traps.iter().map(|t| (t.x, t.y, 2.6)));
+    let (hc, hs) = (k.travel.cos(), k.travel.sin());
+    // on slippery ice a turn takes longer to bite, so look further
+    let slippery = matches!(k.surface, crate::track::Surface::BlackIce | crate::track::Surface::Ice);
+    let reach = 8.0 + k.speed.max(0.0) * if slippery { 0.9 } else { 0.45 };
+    let mut dodge: Option<f32> = None;
+    for (x, y, rad) in close {
+        let (dx, dy) = (x - k.x, y - k.y);
+        let along = dx * hc + dy * hs;
+        let side = -dx * hs + dy * hc;
+        if along > 0.0 && along < reach && side.abs() < rad {
+            // steer to the side away from it, harder the nearer it is
+            let push = if side >= 0.0 { -1.0 } else { 1.0 } * (1.0 - along / reach).max(0.4);
+            if dodge.is_none_or(|d| push.abs() > d.abs()) {
+                dodge = Some(push);
+            }
+        }
+    }
+    if let Some(d) = dodge {
+        c.steer = d.clamp(-1.0, 1.0);
+        c.drift = false;
+    }
     if me.roulette > 0.0 {
         return c;
     }

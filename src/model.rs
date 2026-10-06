@@ -45,6 +45,10 @@ pub enum Ride {
     Snowmobile,
     Toboggan,
     Skis,
+    /// Julbocken, the straw Yule goat, with a Tomte riding.
+    Goat,
+    /// La Befana's broomstick, flying low.
+    Broom,
     /// Santa's snowplough: the one thing the helpers left behind.
     Plough,
 }
@@ -404,6 +408,64 @@ impl Model {
                 }
                 (11.0, 1.0, [[0.0, -2.0, 0.0], [0.0, 2.0, 0.0]])
             }
+            Ride::Goat => {
+                const STRAW: Rgb = (226, 186, 92);
+                const STRAW_DARK: Rgb = (184, 142, 62);
+                const RIBBON: Rgb = (206, 34, 50);
+                // legs in a trot, bound with ribbon at the knee
+                let swing = [[1.5f32, -1.5, -1.5, 1.5], [0.5, -0.5, 0.5, -0.5], [-1.5, 1.5, 1.5, -1.5], [-0.5, 0.5, -0.5, 0.5]][frame % 4];
+                for (k, (lx, ly)) in [(6.0f32, -2.0f32), (6.0, 2.0), (17.0, -2.0), (17.0, 2.0)].into_iter().enumerate() {
+                    g.line((lx, ly, 7.0), (lx + swing[k], ly, 0.0), STRAW_DARK);
+                    g.set((lx + swing[k] * 0.5).round() as i32, ly as i32, 3, RIBBON);
+                }
+                // the body: a bundle of straw, ribbons wound round it
+                g.blob((11.5, 0.0, 9.0), (8.0, 3.0, 3.0), STRAW);
+                for x in [6, 11, 16] {
+                    for y in -3..=3 {
+                        for z in 6..=12 {
+                            if g.get(x, y, z).is_some() {
+                                g.set(x, y, z, RIBBON);
+                            }
+                        }
+                    }
+                }
+                for x in (5..=18).step_by(2) {
+                    g.set(x, 0, 12, STRAW_DARK);
+                }
+                // neck, head, beard and the great curling horns
+                g.line((18.0, 0.0, 10.0), (21.0, 0.0, 15.0), STRAW);
+                g.blob((22.5, 0.0, 15.5), (2.4, 1.6, 1.6), STRAW);
+                g.set(25, 0, 15, STRAW_DARK);
+                g.line((24.0, 0.0, 14.0), (24.0, 0.0, 12.0), STRAW_DARK);
+                g.block((20, 20), (-2, 2), (14, 14), RIBBON);
+                for side in [-1.0f32, 1.0] {
+                    for k in 0..=20 {
+                        let a = k as f32 / 20.0 * 4.2;
+                        let r = 1.0 + a * 0.55;
+                        g.set((21.5 - a.sin() * r).round() as i32, (side * (1.6 + a * 0.4)).round() as i32, (17.0 + a.cos() * r * 0.8 + a * 0.4).round() as i32, STRAW_DARK);
+                    }
+                }
+                g.ball((3.5, 0.0, 10.5), 1.0, STRAW);
+                // the Tomte: grey coat, red cap, a long white beard
+                g.elf(11, 12, 3, e, frame);
+                g.blob((10.5, 0.0, 15.5), (1.2, 2.0, 2.2), WHITE);
+                (12.0, 1.0, [[5.0, -2.0, 0.0], [5.0, 2.0, 0.0]])
+            }
+            Ride::Broom => {
+                // the handle, the bristles, and her sack of gifts
+                g.line((4.0, 0.0, 6.0), (29.0, 0.0, 8.5), WOOD);
+                g.line((4.0, 0.0, 5.0), (29.0, 0.0, 7.5), WOOD_DARK);
+                for k in 0..=12 {
+                    let t = k as f32 / 12.0;
+                    g.blob((4.0 - t * 4.0, 0.0, 5.5), (1.6, 0.9 + t * 1.8, 0.9 + t * 1.6), if k % 3 == 0 { (176, 136, 70) } else { (206, 168, 96) });
+                }
+                g.block((6, 6), (-1, 1), (4, 7), RED_DARK);
+                g.elf(13, 8, 5, e, frame);
+                // sooty headscarf knot and a sack over the shoulder
+                g.blob((8.0, 0.0, 12.0), (2.6, 2.6, 3.0), (130, 92, 60));
+                g.set(8, 0, 15, GOLD);
+                (14.0, 1.0, [[1.0, -2.0, 5.0], [1.0, 2.0, 5.0]])
+            }
             Ride::Plough => {
                 // chassis on caterpillar tracks
                 for side in [-6, 6] {
@@ -718,7 +780,7 @@ mod tests {
 
     #[test]
     fn every_ride_has_a_shell_of_voxels() {
-        for r in [Ride::Sleigh, Ride::Reindeer, Ride::Snowmobile, Ride::Toboggan, Ride::Skis, Ride::Plough] {
+        for r in [Ride::Sleigh, Ride::Reindeer, Ride::Snowmobile, Ride::Toboggan, Ride::Skis, Ride::Goat, Ride::Broom, Ride::Plough] {
             let m = Model::build(r, &BOB, 0);
             assert!(m.voxels.len() > 250, "{r:?}: {}", m.voxels.len());
         }

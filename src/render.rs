@@ -572,12 +572,16 @@ pub fn frame_of(ride: Ride, odo: f32) -> (usize, f32) {
         Ride::Reindeer => 11.0,
         Ride::Skis => 10.0,
         Ride::Snowmobile | Ride::Plough => 3.0,
-        Ride::Sleigh | Ride::Toboggan => 16.0,
+        Ride::Sleigh | Ride::Toboggan | Ride::Broom => 16.0,
+        Ride::Goat => 9.0,
     };
     let f = ((odo / cycle).fract() * FRAMES as f32) as usize % FRAMES;
     let rise = match ride {
         Ride::Reindeer => [0.0, 0.8, 1.6, 0.8][f],
         Ride::Skis => [0.0, 0.5, 0.0, 0.5][f],
+        Ride::Goat => [0.0, 0.6, 1.2, 0.6][f],
+        // the broom flies low, bobbing
+        Ride::Broom => 9.0 + [0.0, 0.6, 1.0, 0.6][f],
         _ => 0.0,
     };
     (f, rise)

@@ -1,4 +1,4 @@
-//! One race: six helpers, the countdown, laps and places, present boxes and
+//! One race: the whole roster, the countdown, laps and places, present boxes and
 //! what comes out of them, and Santa.
 //!
 //! Laps are counted by quarters of the lap, in order, so cutting back over
@@ -922,14 +922,14 @@ mod tests {
             r.step(Controls::default());
             steps += 1;
         }
-        assert_eq!(r.order.len(), 6, "{name}: all finished");
+        assert_eq!(r.order.len(), ROSTER.len(), "{name}: all finished");
         let t = r.racers[r.order[0]].finished.unwrap();
         let last = r.racers[*r.order.last().unwrap()].finished.unwrap();
         eprintln!("{name}: winner {t:.1}s, last {last:.1}s, Santa came {} times", r.santa.visits);
         assert!((90.0..220.0).contains(&t), "{name}: winning time {t}");
         let mut places: Vec<u8> = r.racers.iter().map(|x| x.place).collect();
         places.sort();
-        assert_eq!(places, vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(places, (1..=ROSTER.len() as u8).collect::<Vec<_>>());
         assert!(r.santa.visits >= 1, "{name}: Santa came");
         }
     }
@@ -1025,8 +1025,8 @@ mod tests {
     fn two_humans_start_at_the_back_and_drive_their_own() {
         let mut r = Race::with_humans(Track::frozen_lake(), &[2, 4], 3);
         assert!(r.racers[2].is_player() && r.racers[4].is_player());
-        assert_eq!(r.racers[2].place, 6);
-        assert_eq!(r.racers[4].place, 5);
+        assert_eq!(r.racers[2].place as usize, ROSTER.len());
+        assert_eq!(r.racers[4].place as usize, ROSTER.len() - 1);
         r.clock = COUNTDOWN;
         for _ in 0..120 {
             r.step_with(&[(2, Controls { gas: true, ..Default::default() })]);
@@ -1073,10 +1073,10 @@ mod balance {
 
     /// Average place of each racer with everyone on autopilot.
     fn average_places(make: fn() -> Track, runs: u32) -> Vec<f32> {
-        let mut sum = [0u32; 6];
+        let mut sum = vec![0u32; ROSTER.len()];
         for seed in 1..=runs {
             let mut r = Race::new(make(), None, seed * 977);
-            while r.order.len() < 6 && r.clock < 500.0 {
+            while r.order.len() < ROSTER.len() && r.clock < 500.0 {
                 r.step(Controls::default());
             }
             for (i, rc) in r.racers.iter().enumerate() {
@@ -1088,12 +1088,14 @@ mod balance {
 
     #[test]
     fn no_ride_runs_away_with_it() {
-        // six racers average 3.5; nobody should be far off over many races
-        // (at 40 races, luck alone moves a racer about half a place)
+        // the field averages the middle place; nobody should be far off over
+        // many races (at 40 races, luck alone moves a racer about half a
+        // place)
+        let mid = (ROSTER.len() as f32 + 1.0) / 2.0;
         for (name, make) in crate::track::courses() {
             let avg = average_places(make, 40);
             for (i, a) in avg.iter().enumerate() {
-                assert!((2.3..4.7).contains(a), "{name}: {} averages {a:.1}", ROSTER[i].name);
+                assert!((a - mid).abs() < 1.6, "{name}: {} averages {a:.1}", ROSTER[i].name);
             }
         }
     }

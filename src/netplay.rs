@@ -1,7 +1,7 @@
 //! Racing together over iroh: on the local network (found by a beacon, no
 //! addresses to type) or across the internet (by the host's iroh id).
 //!
-//! The host runs the only race. Up to five guests each take one of the six
+//! The host runs the only race. Up to seven guests each take one of the eight
 //! racers from the AI: they choose their racer, the host chooses the course
 //! and difficulty and starts. Guests send their controls every step; the
 //! host sends the whole race back every step. A guest who leaves mid-race
