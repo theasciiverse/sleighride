@@ -449,6 +449,46 @@ fn pine(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, fog: f32, haze
     }
 }
 
+/// A giant candy cane: a striped pole with its hook turned one way or the
+/// other (`seed` picks which).
+fn cane(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb) {
+    let h = TREE_H * size * scale * 1.05;
+    if h < 1.0 {
+        return;
+    }
+    let w = (h * 0.09).max(1.0);
+    let hook = h * 0.17;
+    let dir = if (seed * 0.37).sin() > 0.0 { 1.0 } else { -1.0 };
+    let stripe = |u: f32, along: f32| -> Rgb {
+        let k = ((along + u * 0.6) / (w * 1.1)).floor() as i32;
+        let c = if k % 2 == 0 { (226, 34, 52) } else { (250, 248, 250) };
+        mix(c, haze, fog)
+    };
+    // the straight shaft
+    let top = sy - h + hook;
+    for y in top as i32..sy as i32 {
+        for x in (sx - w / 2.0) as i32..(sx + w / 2.0).ceil() as i32 {
+            let u = x as f32 - sx;
+            let shade = if u > 0.0 { 0.82 } else { 1.0 };
+            let c = stripe(u, sy - y as f32);
+            cv.put(x, y, (((c.0 as f32) * shade) as u8, ((c.1 as f32) * shade) as u8, ((c.2 as f32) * shade) as u8));
+        }
+    }
+    // the hook: a half ring over the top
+    let (cx, cy) = (sx + dir * hook, top);
+    let steps = (hook * 8.0) as i32 + 8;
+    for k in 0..=steps {
+        let a = std::f32::consts::PI * k as f32 / steps as f32;
+        let (px, py) = (cx - dir * a.cos() * hook, cy - a.sin() * hook);
+        for t in 0..w.ceil() as i32 {
+            let r = hook - w / 2.0 + t as f32;
+            let (qx, qy) = (cx - dir * a.cos() * r, cy - a.sin() * r);
+            cv.put(qx as i32, qy as i32, stripe(t as f32, h - hook + a * hook));
+        }
+        let _ = (px, py);
+    }
+}
+
 /// A grain of snow or a spark, in the world.
 #[derive(Clone, Copy)]
 pub struct Particle {
@@ -863,7 +903,11 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
             Thing::Tree(size) => {
                 let w = TREE_H * size * scale * 0.6;
                 if sx + w > 0.0 && sx - w < v.w {
-                    pine(cv, sx, sy, scale, size, fog, haze);
+                    if th.canes {
+                        cane(cv, sx, sy, scale, size, x, fog, haze);
+                    } else {
+                        pine(cv, sx, sy, scale, size, fog, haze);
+                    }
                 }
             }
             Thing::Racer(i) => racer(cv, &v, &s.cam, tr, &r.racers[i], haze, s.time),

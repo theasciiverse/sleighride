@@ -41,6 +41,8 @@ pub struct Theme {
     pub aurora: bool,
     /// The flock against this sky.
     pub birds: (u8, u8, u8),
+    /// Giant candy canes stand where pines would.
+    pub canes: bool,
 }
 
 pub const FROZEN: Theme = Theme {
@@ -56,6 +58,7 @@ pub const FROZEN: Theme = Theme {
     hills: [(124, 132, 190), (70, 80, 132)],
     aurora: true,
     birds: (226, 232, 248),
+    canes: false,
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -72,6 +75,7 @@ pub const EGGNOGG: Theme = Theme {
     hills: [(196, 128, 150), (120, 70, 110)],
     aurora: false,
     birds: (52, 30, 52),
+    canes: false,
 };
 
 #[derive(Clone, Copy)]
@@ -220,6 +224,71 @@ const THIN_ICE_PTS: &[(f32, f32)] = &[
     (215.0, 770.0),
 ];
 
+/// Candy Cane Forest: lilac dusk, mint kerbs, pink-tinged snow and a
+/// frozen strawberry-milk lake with sprinkles.
+pub const CANDY: Theme = Theme {
+    road: (184, 176, 198),
+    kerb: [(52, 186, 120), (246, 246, 250)],
+    powder: [(232, 214, 234), (252, 244, 252)],
+    bank: [(214, 190, 220), (255, 250, 255)],
+    lake: [(232, 150, 184), (246, 192, 212), (255, 255, 255)],
+    flecks: true,
+    ice: (206, 236, 250),
+    sky: [(74, 50, 120), (250, 190, 222)],
+    haze: (246, 216, 234),
+    hills: [(206, 156, 206), (150, 100, 162)],
+    aurora: false,
+    birds: (72, 40, 84),
+    canes: true,
+};
+
+/// Candy Cane Forest: winding through the canes, over a big hill with a
+/// kicker on its top, round a frozen strawberry-milk lake.
+const CANDY_RELIEF: Relief = Relief {
+    keys: &[
+        (0.0, 0.0),
+        (0.07, 6.0),
+        (0.13, 2.0),
+        (0.19, 10.0),
+        (0.25, 4.0),
+        (0.31, 15.0),
+        (0.37, 4.0),
+        (0.43, 10.0),
+        (0.49, 6.0),
+        (0.55, 12.0),
+        (0.61, 3.0),
+        (0.67, 8.0),
+        (0.74, 2.0),
+        (0.81, 6.0),
+        (0.87, -2.0),
+        (0.94, 2.0),
+    ],
+    kickers: &[(0.31, 3.5, 24)],
+    inlets: &[],
+    on_lake: &[],
+    holes: &[],
+    lake: -14.0,
+};
+
+const CANDY_PTS: &[(f32, f32)] = &[
+    (160.0, 820.0),
+    (130.0, 600.0),
+    (240.0, 470.0),
+    (140.0, 330.0),
+    (230.0, 170.0),
+    (420.0, 140.0),
+    (520.0, 290.0),
+    (650.0, 160.0),
+    (830.0, 170.0),
+    (895.0, 330.0),
+    (780.0, 460.0),
+    (885.0, 610.0),
+    (845.0, 810.0),
+    (650.0, 870.0),
+    (500.0, 760.0),
+    (340.0, 885.0),
+];
+
 /// A bright, overcast winter morning.
 pub const MORNING: Theme = Theme {
     road: (172, 178, 198),
@@ -234,6 +303,7 @@ pub const MORNING: Theme = Theme {
     hills: [(150, 166, 200), (96, 112, 150)],
     aurora: false,
     birds: (44, 44, 64),
+    canes: false,
 };
 
 /// Frozen Lake: the start straight climbs a ridge along the west shore to a
@@ -265,8 +335,8 @@ const FROZEN_RELIEF: Relief = Relief {
 };
 
 /// The courses, in menu order.
-pub fn courses() -> [(&'static str, fn() -> Track); 3] {
-    [("Frozen Lake", Track::frozen_lake), ("Eggnogg", Track::eggnogg), ("Thin Ice", Track::thin_ice)]
+pub fn courses() -> [(&'static str, fn() -> Track); 4] {
+    [("Frozen Lake", Track::frozen_lake), ("Eggnogg", Track::eggnogg), ("Thin Ice", Track::thin_ice), ("Candy Cane Forest", Track::candy_cane_forest)]
 }
 
 /// Control points of the first course, Frozen Lake: start straight running
@@ -488,6 +558,12 @@ impl Track {
     pub fn eggnogg() -> Track {
         let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &EGGNOGG_RELIEF);
         t.add_ice(&[(0.17, 3.0, 6.0), (0.45, -4.0, 7.0), (0.58, 5.0, 6.0), (0.86, 0.0, 8.0)]);
+        t
+    }
+
+    pub fn candy_cane_forest() -> Track {
+        let mut t = Track::build("Candy Cane Forest", CANDY_PTS, 14.0, CANDY, &CANDY_RELIEF);
+        t.add_ice(&[(0.22, 4.0, 6.0), (0.58, -4.0, 7.0)]);
         t
     }
 

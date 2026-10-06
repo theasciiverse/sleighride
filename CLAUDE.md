@@ -57,7 +57,8 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (three; `track::courses()`): **Thin Ice** (see Next steps), **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
+- Courses (four; `track::courses()`): **Thin Ice** and **Candy Cane
+  Forest** (see Next steps), **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
   and two kickers, see below) and
   **Eggnogg** (sunset, a creamy eggnog lake flecked with nutmeg, gold kerbs,
   four ice patches, twistier)
@@ -283,8 +284,14 @@ David wants all of these (2026-10-06), roughly in this order:
         at 35% grip). Eight holes in the ice (`Relief::holes`), always
         leaving a lane: drive in and it's SPLASH!, hauled out 10+ units
         back, all speed gone, 1.3 s shivering; rivals steer round them
-      More course ideas: a candy-cane forest, a gingerbread village, the
-      workshop itself (indoors?), a glacier under the northern lights
+      - [x] **Candy Cane Forest** (2026-10-06): lilac dusk (`CANDY`
+        theme), a forest of giant striped candy canes in place of pines
+        (`Theme::canes`, hooks turned either way), mint kerbs, pink-tinged
+        snow, a frozen strawberry-milk lake with sprinkles; winding and
+        hilly with a kicker off a big hilltop and two ice patches
+      More course ideas: a gingerbread village, the workshop itself
+      (indoors?), a glacier under the northern lights. The loop moves on to
+      weather after these two; more courses can come back any time
 - [ ] Weather: blizzards (shorter sight, driving snow, gusts), snow
       tornadoes that wander and spin you out
 - [ ] Wildlife: a penguin line crossing the road, a polar bear that
