@@ -146,16 +146,19 @@ impl Birds {
             let dist = ahead + across * tilt;
             for k in 0..FLOCK {
                 let hk = hash(k as u32 + 99);
-                // a loose V, pointing the way it flies
+                // a loose V, pointing the way it flies, well spread out
+                // (David found the first one too tight), each bird a little
+                // off its place and at its own height
                 let rank = ((k + 1) / 2) as f32;
                 let wing = if k % 2 == 0 { 1.0 } else { -1.0 } * rank;
-                let back = rank * 4.0 + (hk % 7) as f32 * 0.4;
-                let a = across - side * back + (self.t * 1.3 + k as f32).sin() * 1.2;
-                let d = dist + wing * 4.0;
+                let back = rank * 9.0 + (hk % 7) as f32 * 1.2;
+                let a = across - side * back + (self.t * 1.3 + k as f32).sin() * 2.0;
+                let d = dist + wing * 7.0;
+                let lift = ((hk >> 8) % 6) as f32 * 1.2;
                 self.flock.push(Flyer {
                     x: vx + fx * d + rx * a,
                     y: vy + fy * d + ry * a,
-                    z: vz + height + (self.t * 0.9 + k as f32 * 0.7).sin() * 1.5,
+                    z: vz + height + lift + (self.t * 0.9 + k as f32 * 0.7).sin() * 1.5,
                     flap: self.t * 3.5 + (hk % 100) as f32 / 100.0,
                 });
             }
