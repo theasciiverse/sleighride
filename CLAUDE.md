@@ -235,11 +235,15 @@ David wants all of these (2026-10-06), roughly in this order:
       plays the rides live by speed (sleigh bells and runner hiss,
       galloping hoofbeats synced to the drawn stride, the snowmobile's
       two-stroke, skis swishing, Santa's diesel getting louder as he
-      closes), the nearest three rivals by distance, and the music:
-      Jingle Bells (Pierpont, 1857) on the menus, Deck the Halls
-      (traditional) in the race, faster on the final lap, a low warning
-      bass while Santa is after you. Leroy Anderson's "Sleigh Ride" (1948)
-      is still under copyright and deliberately not used. 28 effects:
+      closes), the nearest three rivals by distance, and the music: two
+      original tunes, "First Light" (gentle, pentatonic) on the menus and
+      "Runners" (driving, E minor) in the race, faster on the final lap,
+      a low warning bass while Santa is after you, soft hi-hats rather
+      than sleigh bells. **The soundtrack stays wintry, not Christmassy**
+      (David, 2026-10-06: the game is played all year and carols would
+      get to be a bit much); the first version's carols were replaced.
+      Santa's plough sounds like a tank: a low beating growl and
+      clanking tracks that speed up with him. 28 effects:
       countdown, hop, spark tiers, boost, rocket start, stall, launch,
       landing crunch, trick, bumps, tree, hits, throws, burst, tinsel,
       peppermint, smooch, box ding, roulette tick, Santa's horn, the whack

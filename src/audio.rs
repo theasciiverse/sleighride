@@ -4,9 +4,10 @@
 //! - One endless source, the band, plays everything that changes from
 //!   moment to moment: the rides (sleigh bells, hoofbeats, the snowmobile's
 //!   two-stroke, runners hissing, skis swishing, Santa's diesel), and the
-//!   music. The music is traditional and public domain, arranged here: Jingle
-//!   Bells on the menus, Deck the Halls in the race, faster on the final lap,
-//!   with a low warning bass under it while Santa is after you.
+//!   music: two original tunes, wintry rather than Christmassy so the game
+//!   sits well any time of year. A gentle pentatonic theme on the menus; a
+//!   driving one in E minor in the race, faster on the final lap, with a low
+//!   warning bass under it while Santa is after you.
 //!
 //! Without an audio device, or with `--mute`, every call does nothing.
 
@@ -98,7 +99,7 @@ pub enum Voice {
     Runners,
     /// Skis swishing in a skating rhythm.
     Skis,
-    /// Santa's diesel.
+    /// Santa's plough: a tank's growl and clanking tracks.
     Diesel,
 }
 
@@ -116,11 +117,11 @@ pub const RIDES: usize = 5;
 pub enum Music {
     #[default]
     Off,
-    /// Jingle Bells.
+    /// The menu theme.
     Menu,
-    /// Deck the Halls.
+    /// The race theme.
     Race,
-    /// Deck the Halls, faster.
+    /// The race theme, faster.
     FinalLap,
 }
 
@@ -357,59 +358,63 @@ fn render_sfx(s: Sfx) -> Vec<f32> {
 /// A melody note in beats: (midi, start, length).
 type Note = (f32, f32, f32);
 
-/// Jingle Bells (James Lord Pierpont, 1857), the chorus, in C.
-fn jingle_bells() -> (Vec<Note>, f32) {
-    let line: &[(f32, f32)] = &[
-        (64.0, 1.0), (64.0, 1.0), (64.0, 2.0),
-        (64.0, 1.0), (64.0, 1.0), (64.0, 2.0),
-        (64.0, 1.0), (67.0, 1.0), (60.0, 1.5), (62.0, 0.5),
+/// A tune: its notes, its length in beats, and a bass root per 4-beat bar.
+struct Song {
+    notes: Vec<Note>,
+    len: f32,
+    roots: Vec<f32>,
+}
+
+/// "First Light", the menu theme: airy, in C major pentatonic.
+fn first_light() -> Song {
+    let a: &[(f32, f32)] = &[
+        (64.0, 1.0), (67.0, 1.0), (69.0, 2.0),
+        (67.0, 1.0), (64.0, 1.0), (62.0, 2.0),
+        (60.0, 1.0), (62.0, 1.0), (64.0, 1.0), (67.0, 1.0),
         (64.0, 4.0),
-        (65.0, 1.0), (65.0, 1.0), (65.0, 1.5), (65.0, 0.5),
-        (65.0, 1.0), (64.0, 1.0), (64.0, 1.0), (64.0, 0.5), (64.0, 0.5),
     ];
-    let first_end: &[(f32, f32)] = &[(64.0, 1.0), (62.0, 1.0), (62.0, 1.0), (64.0, 1.0), (62.0, 2.0), (67.0, 2.0)];
-    let second_end: &[(f32, f32)] = &[(67.0, 1.0), (67.0, 1.0), (65.0, 1.0), (62.0, 1.0), (60.0, 4.0)];
-    sequence(&[line, first_end, line, second_end])
+    let b: &[(f32, f32)] = &[
+        (64.0, 1.0), (67.0, 1.0), (69.0, 2.0),
+        (72.0, 1.0), (69.0, 1.0), (67.0, 2.0),
+        (64.0, 1.0), (62.0, 1.0), (60.0, 1.0), (62.0, 1.0),
+        (60.0, 4.0),
+    ];
+    let c: &[(f32, f32)] = &[
+        (69.0, 1.5), (72.0, 0.5), (74.0, 2.0),
+        (72.0, 1.0), (69.0, 1.0), (67.0, 2.0),
+        (69.0, 1.0), (67.0, 1.0), (64.0, 1.0), (62.0, 1.0),
+        (64.0, 2.0), (67.0, 2.0),
+    ];
+    sequence(&[a, b, c, b], &[48.0, 45.0, 41.0, 48.0, 48.0, 41.0, 43.0, 48.0, 45.0, 41.0, 48.0, 43.0, 48.0, 41.0, 43.0, 48.0])
 }
 
-/// Deck the Halls (Welsh, traditional), in C.
-fn deck_the_halls() -> (Vec<Note>, f32) {
-    let deck: &[(f32, f32)] = &[(67.0, 1.5), (65.0, 0.5), (64.0, 1.0), (62.0, 1.0), (60.0, 1.0), (62.0, 1.0), (64.0, 1.0), (60.0, 1.0)];
-    let fala: &[(f32, f32)] = &[(62.0, 0.5), (64.0, 0.5), (65.0, 0.5), (62.0, 0.5), (64.0, 1.5), (62.0, 0.5), (60.0, 1.0), (59.0, 1.0), (60.0, 2.0)];
-    let middle: &[(f32, f32)] = &[
-        (62.0, 1.5), (64.0, 0.5), (65.0, 1.0), (62.0, 1.0), (64.0, 1.5), (65.0, 0.5), (67.0, 1.0), (62.0, 1.0),
-        (64.0, 0.5), (66.0, 0.5), (67.0, 1.0), (69.0, 0.5), (71.0, 0.5), (72.0, 1.0), (71.0, 1.0), (69.0, 1.0), (67.0, 2.0),
+/// "Runners", the race theme: driving, in E minor.
+fn runners() -> Song {
+    let a: &[(f32, f32)] = &[
+        (64.0, 0.5), (67.0, 0.5), (71.0, 1.0), (69.0, 0.5), (67.0, 0.5), (64.0, 1.0),
+        (62.0, 0.5), (64.0, 0.5), (67.0, 1.0), (69.0, 2.0),
+        (64.0, 0.5), (67.0, 0.5), (71.0, 1.0), (74.0, 0.5), (71.0, 0.5), (69.0, 1.0),
+        (67.0, 0.5), (69.0, 0.5), (66.0, 1.0), (64.0, 2.0),
     ];
-    let last: &[(f32, f32)] = &[(69.0, 0.5), (69.0, 0.5), (69.0, 0.5), (69.0, 0.5), (67.0, 1.5), (65.0, 0.5), (64.0, 1.0), (62.0, 1.0), (60.0, 2.0)];
-    sequence(&[deck, fala, deck, fala, middle, deck, last])
+    let b: &[(f32, f32)] = &[
+        (71.0, 1.0), (72.0, 0.5), (71.0, 0.5), (69.0, 1.0), (67.0, 1.0),
+        (69.0, 1.0), (71.0, 0.5), (69.0, 0.5), (67.0, 1.0), (66.0, 1.0),
+        (67.0, 0.5), (69.0, 0.5), (71.0, 1.0), (76.0, 1.0), (74.0, 1.0),
+        (71.0, 3.0), (66.0, 1.0),
+    ];
+    sequence(&[a, b, a, b], &[40.0, 36.0, 40.0, 35.0, 36.0, 38.0, 40.0, 35.0, 40.0, 36.0, 40.0, 35.0, 36.0, 38.0, 40.0, 35.0])
 }
 
-fn sequence(parts: &[&[(f32, f32)]]) -> (Vec<Note>, f32) {
-    let mut out = Vec::new();
+fn sequence(parts: &[&[(f32, f32)]], roots: &[f32]) -> Song {
+    let mut notes = Vec::new();
     let mut at = 0.0;
     for part in parts {
         for &(n, d) in *part {
-            out.push((n, at, d));
+            notes.push((n, at, d));
             at += d;
         }
     }
-    (out, at)
-}
-
-/// The bass root for a bar, guessed from the melody in it: F or A means the
-/// F chord, D, B or F sharp the G chord, otherwise C.
-fn bass_root(notes: &[Note], bar: f32) -> f32 {
-    let mut root = 48.0;
-    for &(n, s, _) in notes {
-        if s >= bar && s < bar + 4.0 {
-            match (n as i32) % 12 {
-                5 | 9 => return 41.0,
-                2 | 11 | 6 => root = 43.0,
-                _ => {}
-            }
-        }
-    }
-    root
+    Song { notes, len: at, roots: roots.to_vec() }
 }
 
 #[derive(Clone, Copy)]
@@ -439,12 +444,15 @@ struct Band {
     rides: [RideState; RIDES],
     /// Ringing bells from the rides: (age, pitch, gain).
     bells: Vec<(f32, f32, f32)>,
-    /// Hoofbeats: (age, gain).
+    /// Hoofbeats and kicks: (age, gain).
     thumps: Vec<(f32, f32)>,
+    /// Hi-hats: age.
+    hats: Vec<f32>,
     tones: Vec<Tone>,
     song: Music,
     notes: Vec<Note>,
     song_len: f32,
+    roots: Vec<f32>,
     beat: f32,
     next_note: usize,
     noise: Noise,
@@ -461,10 +469,12 @@ impl Band {
             rides: [RideState::default(); RIDES],
             bells: Vec::new(),
             thumps: Vec::new(),
+            hats: Vec::new(),
             tones: Vec::new(),
             song: Music::Off,
             notes: Vec::new(),
             song_len: 1.0,
+            roots: Vec::new(),
             beat: 0.0,
             next_note: 0,
             noise: Noise(0x2468_ACE1),
@@ -485,20 +495,21 @@ impl Band {
         };
         if song != self.song {
             self.song = song;
-            let (notes, len) = match song {
-                Music::Menu => jingle_bells(),
-                Music::Race | Music::FinalLap => deck_the_halls(),
-                Music::Off => (Vec::new(), 1.0),
+            let tune = match song {
+                Music::Menu => first_light(),
+                Music::Race | Music::FinalLap => runners(),
+                Music::Off => Song { notes: Vec::new(), len: 1.0, roots: Vec::new() },
             };
-            self.notes = notes;
-            self.song_len = len;
+            self.notes = tune.notes;
+            self.song_len = tune.len;
+            self.roots = tune.roots;
             self.beat = 0.0;
             self.next_note = 0;
         }
         let bpm = match music {
-            Music::Menu => 150.0,
-            Music::Race => 132.0,
-            Music::FinalLap => 168.0,
+            Music::Menu => 96.0,
+            Music::Race => 140.0,
+            Music::FinalLap => 172.0,
             Music::Off => 0.0,
         };
         for i in 0..self.buf.len() {
@@ -514,17 +525,32 @@ impl Band {
                 while self.next_note < self.notes.len() && self.notes[self.next_note].1 <= self.beat {
                     let (n, _, d) = self.notes[self.next_note];
                     let secs = d * 60.0 / bpm;
-                    self.tones.push(Tone { freq: midi(n), ph: 0.0, age: 0.0, len: secs * 0.92, gain: 0.07, wave: square });
+                    let (gain, wave): (f32, fn(f32) -> f32) = if self.song == Music::Menu { (0.11, tri) } else { (0.065, square) };
+                    self.tones.push(Tone { freq: midi(n), ph: 0.0, age: 0.0, len: secs * 0.92, gain, wave });
                     self.next_note += 1;
                 }
-                // bass every beat, bells on the off-beats, kick on 1 and 3
+                // bass every beat (eighths in the race), a soft hi-hat on
+                // the off-beats, kick on 1 and 3 in the race
+                let racing = self.song != Music::Menu;
+                let sub = if racing { 2.0 } else { 1.0 };
+                if (before * sub).floor() != (self.beat * sub).floor() {
+                    let b = self.beat.floor();
+                    let bar = (b / 4.0).floor() as usize;
+                    let root = self.roots.get(bar % self.roots.len().max(1)).copied().unwrap_or(48.0);
+                    let step = (self.beat * sub).floor() as i32;
+                    let n = match (racing, step % 4) {
+                        (true, 1) | (true, 3) => root + 12.0,
+                        (true, 2) => root + 7.0,
+                        (false, s) if s % 2 == 1 => root + 7.0,
+                        _ => root,
+                    };
+                    self.tones.push(Tone { freq: midi(n), ph: 0.0, age: 0.0, len: 60.0 / bpm / sub * 0.8, gain: 0.09, wave: tri });
+                }
                 if before.floor() != self.beat.floor() {
                     let b = self.beat.floor();
-                    let bar = (b / 4.0).floor() * 4.0;
-                    let root = bass_root(&self.notes, bar);
-                    let n = if (b as i32) % 2 == 0 { root } else { root + 7.0 };
-                    self.tones.push(Tone { freq: midi(n), ph: 0.0, age: 0.0, len: 60.0 / bpm * 0.8, gain: 0.09, wave: tri });
-                    if (b as i32) % 2 == 0 {
+                    let bar = (b / 4.0).floor() as usize;
+                    let root = self.roots.get(bar % self.roots.len().max(1)).copied().unwrap_or(48.0);
+                    if racing && (b as i32) % 2 == 0 {
                         self.thumps.push((0.0, 0.35));
                     }
                     if self.state.chased {
@@ -532,7 +558,7 @@ impl Band {
                     }
                 }
                 if (before * 2.0).floor() != (self.beat * 2.0).floor() && (self.beat * 2.0).floor() as i32 % 2 == 1 {
-                    self.bells.push((0.0, 1.15, 0.08));
+                    self.hats.push(0.0);
                 }
                 if self.beat >= self.song_len {
                     self.beat -= self.song_len;
@@ -596,11 +622,19 @@ impl Band {
                         hiss += sp * r.gain * (0.3 + 1.2 * swish);
                     }
                     Voice::Diesel => {
-                        st.ph += (34.0 + 30.0 * sp) / SRF;
-                        st.ph2 += (35.1 + 30.0 * sp) / SRF;
-                        let raw = (square(st.ph) + saw(st.ph2)) * 0.5 + self.noise.next() * 0.25;
-                        st.lp += (raw - st.lp) * 0.06;
-                        x += st.lp * 0.3 * r.gain;
+                        // a tank: two detuned square waves beating low, with
+                        // rumble underneath...
+                        st.ph += (30.0 + 18.0 * sp) / SRF;
+                        st.ph2 += (31.3 + 18.0 * sp) / SRF;
+                        let raw = (square(st.ph) + square(st.ph2)) * 0.5 + self.noise.next() * 0.3;
+                        st.lp += (raw - st.lp) * 0.07;
+                        x += st.lp * 0.34 * r.gain * (0.55 + 0.45 * sp.min(1.0));
+                        // ...and the tracks clanking round, faster with speed
+                        let rate = 5.0 + 16.0 * sp;
+                        if st.since >= 1.0 / rate {
+                            st.since = 0.0;
+                            self.bells.push((0.0, 0.32 + self.noise.next() * 0.03, 0.22 * r.gain));
+                        }
                     }
                     Voice::Silent => {}
                 }
@@ -618,6 +652,12 @@ impl Band {
                 t.0 += 1.0 / SRF;
             }
             self.thumps.retain(|t| t.0 < 0.2);
+            for h in &mut self.hats {
+                let n = self.noise.next();
+                x += (n - self.hiss_lp * 0.8) * (-*h * 60.0).exp() * 0.05;
+                *h += 1.0 / SRF;
+            }
+            self.hats.retain(|h| *h < 0.08);
             self.buf[i] = x.clamp(-1.0, 1.0);
         }
     }
@@ -672,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn the_band_plays_every_ride_and_both_songs() {
+    fn the_band_plays_every_ride_and_every_tune() {
         assert_eq!(rms(Live::default(), 0.2), 0.0, "nothing set, nothing heard");
         for voice in [Voice::Sleigh, Voice::Hooves, Voice::Motor, Voice::Runners, Voice::Skis, Voice::Diesel] {
             let mut l = Live::default();
@@ -688,11 +728,13 @@ mod tests {
     }
 
     #[test]
-    fn the_songs_loop() {
-        for (notes, len) in [jingle_bells(), deck_the_halls()] {
-            assert!(notes.len() > 30);
-            let last = notes.last().unwrap();
-            assert!((last.1 + last.2 - len).abs() < 1e-3);
+    fn the_songs_loop_on_whole_bars_with_a_root_for_each() {
+        for song in [first_light(), runners()] {
+            assert!(song.notes.len() > 30);
+            let last = song.notes.last().unwrap();
+            assert!((last.1 + last.2 - song.len).abs() < 1e-3);
+            assert_eq!(song.len % 4.0, 0.0, "whole bars");
+            assert_eq!(song.roots.len() as f32, song.len / 4.0, "a bass root per bar");
         }
     }
 }
