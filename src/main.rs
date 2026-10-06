@@ -10,6 +10,7 @@ mod story;
 mod race;
 mod render;
 mod track;
+mod weather;
 
 use game::{Game, Phase};
 use input::Input;
@@ -55,7 +56,9 @@ fn main() -> io::Result<()> {
         // the racer to be just short of an inlet
         let wait_clip = secs_arg.ends_with('c');
         let wait_inlet = secs_arg.ends_with('i');
-        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i']).parse().unwrap_or(10.0));
+        // ...or "t": for a snow tornado just ahead
+        let wait_twister = secs_arg.ends_with('t');
+        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i', 't']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
@@ -79,6 +82,14 @@ fn main() -> io::Result<()> {
         if std::env::var("SLEIGHRIDE_SHOT_DEBUG").is_ok() {
             let r = &g.race.racers[me];
             eprintln!("shot at clock {:.2}: racer {} idx {} lap {} pos ({:.0},{:.0}) z {:.1}", g.race.clock, me, r.idx, r.lap, r.kart.x, r.kart.y, r.kart.z);
+        }
+        while wait_twister && g.race.clock < 600.0 && !g.race.weather.twisters.iter().any(|t| {
+            let k = &g.race.racers[me].kart;
+            let (dx, dy) = (t.x - k.x, t.y - k.y);
+            let ahead = dx * k.heading.cos() + dy * k.heading.sin();
+            ahead > 15.0 && ahead < 35.0 && (dx * -k.heading.sin() + dy * k.heading.cos()).abs() < 12.0
+        }) {
+            g.run_auto(DT);
         }
         while wait_clip && !(g.race.racers[me].clipped > 0.0 && g.race.racers[me].clipped < race::CLIP_TIME - 0.2) && g.race.clock < 600.0 {
             g.run_auto(DT);
@@ -146,7 +157,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, game: &mut Game, input: &mut Inp
             audio.play(sfx, volume);
         }
         let (rides, music, chased) = game.soundscape();
-        audio.set(&rides, music, chased);
+        audio.set(&rides, music, chased, game.wind());
         terminal.draw(|f| game.draw(f, input))?;
         if snapshot.elapsed() >= SNAPSHOT_EVERY {
             snapshot = Instant::now();

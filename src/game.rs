@@ -340,6 +340,7 @@ impl Game {
                 Note::SantaComing => (Sfx::Horn, None),
                 Note::SantaCaught(i) => (Sfx::Whack, if i == me { None } else { Some(pos(i)) }),
                 Note::Finished(i) if i == me => (Sfx::Finish, None),
+                Note::Twister(i) => (Sfx::Launch, if i == me { None } else { Some(pos(i)) }),
                 _ => continue,
             };
             let v = at.map_or(1.0, |(x, y)| self.near(x, y) * 0.7);
@@ -348,6 +349,8 @@ impl Game {
         for n in notes {
             match n {
                 Note::Burst(x, y) => self.confetti(x, y),
+                Note::Blizzard if playing => self.flash = Some(("BLIZZARD!".into(), 1.6, (220, 236, 255))),
+                Note::Twister(i) if i == me && playing => self.flash = Some(("WHOOSH!".into(), 1.2, (220, 236, 255))),
                 Note::SantaComing if playing => {
                     let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
                     self.flash = Some((text.into(), 2.0, SANTA_COLOUR));
@@ -762,6 +765,14 @@ impl Game {
         };
         let chased = self.phase == Phase::Race && r.santa.active && r.santa.target == Some(me);
         (rides, music, chased)
+    }
+
+    /// How loud the wind is: the blizzard, and any snow tornado close by.
+    pub fn wind(&self) -> f32 {
+        let k = &self.race.racers[self.me()].kart;
+        let near = self.race.weather.twisters.iter().map(|t| (1.0 - (t.x - k.x).hypot(t.y - k.y) / 60.0).max(0.0)).fold(0.0, f32::max);
+        let gain = if self.phase == Phase::Race { 1.0 } else { 0.3 };
+        (self.race.weather.blizzard * 0.8 + near * 0.6).min(1.0) * gain
     }
 
     pub fn snapshot(&self) {

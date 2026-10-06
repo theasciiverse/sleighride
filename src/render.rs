@@ -182,6 +182,10 @@ pub struct View {
     cam_h: f32,
     /// Eye height in the world, set per frame.
     eye: f32,
+    /// How far you can see, and the colour things fade into (both shrink
+    /// toward white in a blizzard).
+    far: f32,
+    haze: Rgb,
 }
 
 impl View {
@@ -192,7 +196,7 @@ impl View {
         // the sleigh's runners sit near the bottom of the screen, with room
         // below for the view to tip on a climb
         let ground = h * 0.86 - hz;
-        View { w, hz, f, cam_h: ground * CAM_BACK / f, eye: 0.0 }
+        View { w, hz, f, cam_h: ground * CAM_BACK / f, eye: 0.0, far: FAR, haze: (200, 210, 230) }
     }
 
     /// Screen position of a point at height `z`, and pixels per unit.
@@ -368,7 +372,7 @@ fn lake(th: &Theme, x: f32, y: f32) -> Rgb {
 /// The ground, column by column, front to back.
 fn terrain(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track) {
     let (c, s) = (cam.angle.cos(), cam.angle.sin());
-    let haze = track.theme.haze;
+    let haze = v.haze;
     let (w, h) = (cv.w, cv.h);
     for y in (v.hz.max(0.0) as usize)..h {
         for x in 0..w {
@@ -382,7 +386,7 @@ fn terrain(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track) {
         let mut ybuf = h as f32;
         let mut t = 2.0f32;
         let mut prev: Option<(f32, f32, f32, f32)> = None;
-        while t < FAR * 1.2 && ybuf > 0.0 {
+        while t < v.far * 1.2 && ybuf > 0.0 {
             let (wx, wy) = (cam.x + c * t - s * a * t, cam.y + s * t + c * a * t);
             let ht = track.height(wx, wy);
             let sy = v.hz + (v.eye - ht) * v.f / t;
@@ -398,7 +402,7 @@ fn terrain(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track) {
                     let (px, pz, pt, pl) = (wx + (qx - wx) * k, wy + (qy - wy) * k, t + (qt - t) * k, lum + (ql - lum) * k);
                     let base = ground_colour(track, px, pz);
                     let lit = (scale_rgb(base, pl), pt);
-                    let fog = (lit.1 / FAR).min(1.0).powf(1.6);
+                    let fog = (lit.1 / v.far).min(1.0).powf(1.6);
                     let i = py as usize * w + col;
                     cv.px[i] = mix(lit.0, haze, fog);
                     cv.depth[i] = pt;
@@ -597,7 +601,7 @@ fn pose_at(v: &View, cam: &Camera, x: f32, y: f32, z: f32, heading: f32, size: f
             pitch: (v.cam_h / z).atan() * 0.55,
             roll: 0.0,
             nose: 0.0,
-            fog: (z / FAR).min(1.0).powf(1.6),
+            fog: (z / v.far).min(1.0).powf(1.6),
             haze,
         },
         scale,
@@ -834,30 +838,41 @@ enum Thing {
     Crow(usize),
     Flyer(usize),
     Pole,
+    Twister(usize),
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     let v = View::new(cv);
     let r = s.race;
     let th = &r.track.theme;
-    let haze = th.haze;
+    // a blizzard closes in: shorter sight, everything fading to white
+    let bliz = r.weather.blizzard;
+    let haze = mix(th.haze, (238, 242, 250), bliz * 0.8);
     let mut v = v;
     v.eye = (s.cam.z + v.cam_h).max(r.track.height(s.cam.x, s.cam.y) + 1.5);
     // tipping the view up a slope lowers the horizon, and over a crest
     // raises it (a shear, as Comanche did, rather than a true rotation)
     v.hz += (v.f * s.cam.pitch.tan() * 0.7).clamp(-(cv.h as f32) * 0.12, cv.h as f32 * 0.12);
+    v.far = FAR * (1.0 - 0.7 * bliz);
+    v.haze = haze;
     let v = v;
     sky(cv, &v, &s.cam, th, s.time);
+    if bliz > 0.0 {
+        let rows = (v.hz.max(0.0) as usize).min(cv.h);
+        for p in cv.px[..rows * cv.w].iter_mut() {
+            *p = mix(*p, haze, bliz * 0.75);
+        }
+    }
     terrain(cv, &v, &s.cam, &r.track);
     // everything standing in the world, drawn far to near
     let mut things: Vec<(f32, f32, f32, Thing)> = Vec::new();
     let depth = |x: f32, y: f32| (x - s.cam.x) * s.cam.angle.cos() + (y - s.cam.y) * s.cam.angle.sin();
     for t in &r.track.trees {
-        if (t.x - s.cam.x).abs() > FAR || (t.y - s.cam.y).abs() > FAR {
+        if (t.x - s.cam.x).abs() > v.far || (t.y - s.cam.y).abs() > v.far {
             continue;
         }
         let z = depth(t.x, t.y);
-        if z > 1.0 && z < FAR {
+        if z > 1.0 && z < v.far {
             things.push((z, t.x, t.y, Thing::Tree(t.size)));
         }
     }
@@ -879,6 +894,9 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for t in &r.traps {
         things.push((depth(t.x, t.y), t.x, t.y, Thing::Trap));
     }
+    for (i, tw) in r.weather.twisters.iter().enumerate() {
+        things.push((depth(tw.x, tw.y), tw.x, tw.y, Thing::Twister(i)));
+    }
     for &(px, py) in &r.track.poles {
         things.push((depth(px, py), px, py, Thing::Pole));
     }
@@ -890,13 +908,13 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for (i, f) in s.birds.flock.iter().enumerate() {
         things.push((depth(f.x, f.y), f.x, f.y, Thing::Flyer(i)));
     }
-    things.retain(|t| t.0 > 1.0 && t.0 < FAR * 1.4);
+    things.retain(|t| t.0 > 1.0 && t.0 < v.far * 1.4);
     things.sort_by(|a, b| b.0.total_cmp(&a.0));
     let tr = &r.track;
     for (z, x, y, thing) in things {
         let ground = tr.height(x, y);
         let Some((sx, sy, scale)) = v.project(&s.cam, x, y, ground) else { continue };
-        let fog = (z / FAR).min(1.0).powf(1.6);
+        let fog = (z / v.far).min(1.0).powf(1.6);
         // hidden wherever the ground in front is nearer
         cv.clip = z - 1.5;
         match thing {
@@ -960,6 +978,31 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                     }
                 }
             }
+            Thing::Twister(i) => {
+                // a spinning funnel of snow, narrow at the ground, wide above
+                let tw = &r.weather.twisters[i];
+                let layers = 26;
+                for k in 0..layers {
+                    let up = k as f32 / layers as f32;
+                    let hgt = up * 16.0;
+                    let rad = 1.0 + up * up * 5.5;
+                    let sway = (s.time * 1.3 + up * 4.0).sin() * up * 1.5;
+                    let Some((ly, _, lsc)) = v.project(&s.cam, x, y, ground + hgt).map(|(_, yy, sc)| (yy, 0.0, sc)) else { continue };
+                    let dots = 10 + (up * 14.0) as i32;
+                    for j in 0..dots {
+                        let a = tw.spin * (1.6 - up) + j as f32 / dots as f32 * std::f32::consts::TAU;
+                        // the near half bright, the far half dimmer
+                        let front = a.sin() > 0.0;
+                        let px = sx + (a.cos() * rad + sway) * lsc;
+                        let py = ly + a.sin() * rad * 0.25 * lsc;
+                        let c = if front { (250, 252, 255) } else { (200, 212, 232) };
+                        cv.blend(px as i32, py as i32, c, 0.85 * (1.0 - fog));
+                        if lsc > 3.0 {
+                            cv.blend(px as i32 + 1, py as i32, c, 0.6 * (1.0 - fog));
+                        }
+                    }
+                }
+            }
             Thing::Pole => {
                 // a striped pole with a pennant snapping in the wind
                 let h = (6.0 * scale) as i32;
@@ -1007,6 +1050,31 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     }
     cv.clip = f32::NEG_INFINITY;
     particles(cv, &v, &s.cam, tr, s.particles);
+    if bliz > 0.0 {
+        driving_snow(cv, &s.cam, r.weather.wind, bliz, s.time);
+    }
+}
+
+/// Snow driving across the view in a blizzard: streaks blown along the
+/// wind as it crosses the screen, falling as they go.
+fn driving_snow(cv: &mut Canvas, cam: &Camera, wind: (f32, f32), k: f32, time: f32) {
+    let (w, h) = (cv.w as f32, cv.h as f32);
+    // the wind's sideways part as seen from the camera
+    let across = wind.0 * -cam.angle.sin() + wind.1 * cam.angle.cos();
+    let (dx, dy) = (across * 1.6 + 0.3, 0.9);
+    let n = ((w * h) / 18.0 * k) as u32;
+    let len = 3.0 + k * 3.0;
+    for j in 0..n {
+        let hj = hash(j as i32, 77) as u32;
+        let speed = 0.6 + (hj % 100) as f32 / 120.0;
+        let x0 = (hj % 4096) as f32 / 4096.0 * w + time * dx * 60.0 * speed;
+        let y0 = ((hj >> 12) % 4096) as f32 / 4096.0 * h + time * dy * 60.0 * speed;
+        let (x, y) = (x0.rem_euclid(w), y0.rem_euclid(h));
+        for q in 0..len as i32 {
+            let f = q as f32 / len;
+            cv.blend((x - dx * f * len) as i32, (y - dy * f * len) as i32, (250, 252, 255), 0.7 * (1.0 - f));
+        }
+    }
 }
 
 /// 3 x 5 pixel font for big text.

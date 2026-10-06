@@ -118,6 +118,9 @@ pub struct Track {
     pub lake_spans: Vec<(usize, usize)>,
     /// Holes in the ice: centre and radius.
     pub holes: Vec<(f32, f32, f32)>,
+    /// Weather: whether blizzards blow here, and how many snow tornadoes.
+    pub blizzards: bool,
+    pub twisters: usize,
     /// The relief it was built from (read by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub relief: &'static Relief,
@@ -551,6 +554,8 @@ fn hash(x: i32, y: i32) -> u32 {
 impl Track {
     pub fn frozen_lake() -> Track {
         let mut t = Track::build("Frozen Lake", FROZEN_LAKE, 14.0, FROZEN, &FROZEN_RELIEF);
+        t.blizzards = true;
+        t.twisters = 1;
         t.add_ice(&[(0.36, -5.0, 6.0), (0.64, 4.0, 7.0)]);
         t
     }
@@ -563,12 +568,16 @@ impl Track {
 
     pub fn candy_cane_forest() -> Track {
         let mut t = Track::build("Candy Cane Forest", CANDY_PTS, 14.0, CANDY, &CANDY_RELIEF);
+        t.twisters = 1;
         t.add_ice(&[(0.22, 4.0, 6.0), (0.58, -4.0, 7.0)]);
         t
     }
 
     pub fn thin_ice() -> Track {
-        Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF)
+        let mut t = Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF);
+        t.blizzards = true;
+        t.twisters = 1;
+        t
     }
 
     /// Ice patches at (fraction of the lap, offset right, radius).
@@ -628,7 +637,7 @@ impl Track {
         let ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), blizzards: false, twisters: 0, relief };
         for &(f, side, r) in relief.holes {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];

@@ -133,6 +133,8 @@ struct Live {
     music: Music,
     /// Santa is after the player: the warning bass.
     chased: bool,
+    /// The wind's howl, 0..1.
+    wind: f32,
     silent: bool,
     music_off: bool,
 }
@@ -189,7 +191,7 @@ impl Audio {
         sink.mixer().add(self.bank[i].clone().amplify(volume));
     }
 
-    pub fn set(&mut self, rides: &[Ride], music: Music, chased: bool) {
+    pub fn set(&mut self, rides: &[Ride], music: Music, chased: bool, wind: f32) {
         if let Ok(mut l) = self.live.lock() {
             l.rides = [Ride::default(); RIDES];
             for (slot, r) in l.rides.iter_mut().zip(rides) {
@@ -197,6 +199,7 @@ impl Audio {
             }
             l.music = music;
             l.chased = chased;
+            l.wind = wind;
         }
     }
 
@@ -465,6 +468,8 @@ struct Band {
     next_note: usize,
     noise: Noise,
     hiss_lp: f32,
+    wind_lp: f32,
+    wind_t: f32,
     buf: Vec<f32>,
     pos: usize,
 }
@@ -487,6 +492,8 @@ impl Band {
             next_note: 0,
             noise: Noise(0x2468_ACE1),
             hiss_lp: 0.0,
+            wind_lp: 0.0,
+            wind_t: 0.0,
             buf: vec![0.0; 1024],
             pos: 1024,
         }
@@ -647,6 +654,14 @@ impl Band {
                     Voice::Silent => {}
                 }
             }
+            // the wind: filtered noise swelling and easing, with a whistle
+            if self.state.wind > 0.01 {
+                self.wind_t += 1.0 / SRF;
+                let swell = 0.6 + 0.4 * (self.wind_t * 0.7).sin() * (self.wind_t * 0.23).sin();
+                self.wind_lp += (self.noise.next() - self.wind_lp) * (0.02 + 0.03 * swell);
+                let whistle = (TAU * (620.0 + 180.0 * (self.wind_t * 0.4).sin()) * self.wind_t).sin() * 0.015 * swell;
+                x += (self.wind_lp * 0.9 + whistle) * self.state.wind * swell;
+            }
             // runners on snow: one shared, filtered hiss
             self.hiss_lp += (self.noise.next() - self.hiss_lp) * 0.25;
             x += self.hiss_lp * 0.05 * hiss.min(2.0);
@@ -731,6 +746,8 @@ mod tests {
             let l = Live { music, ..Default::default() };
             assert!(rms(l, 2.0) > 0.01, "{music:?} plays");
         }
+        let windy = Live { wind: 1.0, ..Default::default() };
+        assert!(rms(windy, 1.0) > 0.003, "the wind is heard");
         let muted = Live { music: Music::Race, silent: true, ..Default::default() };
         assert_eq!(rms(muted, 0.5), 0.0);
     }

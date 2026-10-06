@@ -167,6 +167,9 @@ pub enum Note {
     Used(usize, Item),
     /// Kisser, kissed.
     Kiss(usize, usize),
+    Blizzard,
+    /// Thrown by a snow tornado.
+    Twister(usize),
     Finished(usize),
 }
 
@@ -179,6 +182,7 @@ pub struct Race {
     pub traps: Vec<Trap>,
     pub boxes: Vec<ItemBox>,
     pub santa: Santa,
+    pub weather: crate::weather::Weather,
     pub notes: Vec<Note>,
     /// Finishing order, racer indices.
     pub order: Vec<usize>,
@@ -259,7 +263,9 @@ impl Race {
         }
         let mut santa = Kart::new(0.0, 0.0, 0.0, PLOUGH);
         santa.plough = true;
+        let weather = crate::weather::Weather::new(&track, seed);
         Race {
+            weather,
             track,
             racers,
             clock: 0.0,
@@ -374,6 +380,7 @@ impl Race {
             }
             self.lap_check(i);
         }
+        self.weather_step();
         self.bumps();
         self.kisses();
         self.pick_boxes();
@@ -381,6 +388,29 @@ impl Race {
         self.spring_traps();
         self.santa_step();
         self.place();
+    }
+
+    fn weather_step(&mut self) {
+        if self.weather.step(DT, &self.track) {
+            self.notes.push(Note::Blizzard);
+            log::info!("a blizzard blows in");
+        }
+        let (px, py) = self.weather.push(DT);
+        let twisters = self.weather.twisters.clone();
+        for i in 0..self.racers.len() {
+            let k = &mut self.racers[i].kart;
+            k.x += px;
+            k.y += py;
+            for tw in &twisters {
+                if !k.stunned() && (k.x - tw.x).hypot(k.y - tw.y) < crate::weather::TWISTER_R {
+                    // thrown up and spun round
+                    k.hit(1.1, 1.5);
+                    k.air = true;
+                    k.vz = 16.0;
+                    self.notes.push(Note::Twister(i));
+                }
+            }
+        }
     }
 
     fn lap_check(&mut self, i: usize) {
@@ -879,6 +909,22 @@ mod tests {
         assert_eq!(count(&mut r, 1, Item::Tinsel), 0, "no tinsel for the leader");
         assert!(count(&mut r, 6, Item::Peppermint) > count(&mut r, 1, Item::Peppermint) * 2);
         assert!(count(&mut r, 3, Item::Mistletoe) > count(&mut r, 1, Item::Mistletoe));
+    }
+
+    #[test]
+    fn a_snow_tornado_throws_you_up_spinning() {
+        let mut r = Race::new(Track::frozen_lake(), Some(0), 1);
+        r.clock = COUNTDOWN + 1.0;
+        let p = r.player().unwrap();
+        let tw = r.weather.twisters[0];
+        r.racers[p].kart.x = tw.x;
+        r.racers[p].kart.y = tw.y;
+        r.racers[p].kart.settle(&r.track);
+        r.step(Controls::default());
+        assert!(r.notes.iter().any(|n| *n == Note::Twister(p)));
+        assert!(r.racers[p].kart.stunned());
+        r.step(Controls::default());
+        assert!(r.racers[p].kart.air, "up in the air");
     }
 
     #[test]

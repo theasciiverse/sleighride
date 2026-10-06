@@ -68,7 +68,12 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         return Controls { gas: r.clock >= COUNTDOWN - 1.0 + ai.start_err, ..Default::default() };
     }
     let mut offset = ai.offset;
-    let hazards = r.traps.iter().map(|t| (t.x, t.y, 4.0)).chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5)));
+    let hazards = r
+        .traps
+        .iter()
+        .map(|t| (t.x, t.y, 4.0))
+        .chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5)))
+        .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 3.0)));
     for (hx, hy, clear) in hazards {
         // steer round dropped presents and holes in the ice ahead
         let ti = r.track.idx(hx, hy);

@@ -115,7 +115,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 32 tests, including a full six-racer race on each course (winner to last
+- 36 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -176,6 +176,7 @@ cargo run --release -- --race --shot out.ppm 160 45 30   # a race, everyone on a
 cargo run --release -- --shot out.ppm 160 45 5d    # ... at the first gold-spark drift after 5 s
 cargo run --release -- --race --shot out.ppm 160 45 5a   # ... at the first jump after 5 s
 cargo run --release -- --race --course 2 --shot out.ppm 160 45 10i   # ... just short of an inlet
+cargo run --release -- --race --course 4 --shot out.ppm 160 45 5t    # ... with a snow tornado ahead
 ```
 
 Use `RUST_LOG=sleighride=debug` rather than plain `debug`: gilrs is chatty.
@@ -292,8 +293,16 @@ David wants all of these (2026-10-06), roughly in this order:
       More course ideas: a gingerbread village, the workshop itself
       (indoors?), a glacier under the northern lights. The loop moves on to
       weather after these two; more courses can come back any time
-- [ ] Weather: blizzards (shorter sight, driving snow, gusts), snow
-      tornadoes that wander and spin you out
+- [x] Weather (2026-10-06, `weather.rs`): blizzards on Frozen Lake and
+      Thin Ice: a 22 s calm at the start, then building 6 s, blowing
+      16-26 s, easing 6 s, calm 40-70 s, repeat. While it blows: sight
+      shrinks to 30%, everything fades to white, snow streaks across the
+      view along the wind, gusts push everyone sideways (up to 5 u/s),
+      the wind howls in the band, "BLIZZARD!" as one blows in. Snow
+      tornadoes (one each on Frozen Lake, Thin Ice and Candy Cane Forest)
+      drift back against the race at 7 u/s weaving across the road; touch
+      one and you're thrown up spinning ("WHOOSH!"); rivals steer round
+      them. Eggnogg stays calm
 - [ ] Wildlife: a penguin line crossing the road, a polar bear that
       swipes (and eyes the penguins)
 - [ ] Network play: LAN and internet over iroh, as Panzer and Tetrix do
