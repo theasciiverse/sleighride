@@ -27,15 +27,18 @@ it twice, and whoever is out in front is clearly the ringleader.
 
 The intro is one action-comic page (`story.rs`, captions in
 `game::CAPTIONS`), shown once per run between the title and the racer
-choice: three panels slam in 1.5 s apart, each with a zoom and a white
-flash, a sound word in a starburst and a yellow caption box. SNORE!:
-Santa out cold by the workshop fire ("CHRISTMAS MORNING. SANTA'S OUT
-COLD."). VROOOM!: everything with runners bursting out of the garage
-doors ("THE ELVES FOUND THE KEYS!"). HONK!!: Santa charging in the plough
-("SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!"). About five
-seconds in all; Enter shows the whole page, then races. (It replaced a
-four-page story with typed-out text, 2026-10-06: David wanted it shorter
-and punchier, "pow pow pow", with more action.)
+choice, laid out after David's sketch (2026-10-06): three panels side by
+side, split by sweeping S-curved diagonal gutters. Left, Santa out cold in
+his armchair with Zs drifting up (SNORE!); middle, a slanted band where the
+road winds up the page between pines and everyone with runners charges up
+it with speed lines (VROOOM!); right, Santa in the plough with headlights
+and rays (HONK!!). Panels slam in 0.9 s apart ("bam-bam-bam"): zoom, white
+flash, the page jolts; sound words pop in starbursts with an overshoot, in
+clear space (over a gutter top, at the foot of the road, in the sky above
+the plough) so they never cover a character, and sized to the panel.
+Yellow captions: "CHRISTMAS MORNING. SANTA'S OUT COLD." / "THE ELVES
+FOUND THE KEYS!" / "SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!".
+About three seconds; Enter shows the page, then races.
 
 When Santa catches the ringleader he gives them a good clip round the ear
 (an oversized mitten swings in, dizzy stars), "YOU'RE ON SANTA'S NAUGHTY

@@ -679,19 +679,18 @@ impl Game {
     }
 
     fn draw_story(&self, buf: &mut Buffer, area: Rect) {
-        // a yellow caption box in each panel's top-left corner as it lands
-        let rects = crate::story::comic_rects(area.width as usize, area.height as usize * 2);
+        // a yellow caption box in each panel as it lands
+        let spots = crate::story::caption_spots(area.width as usize, area.height as usize * 2);
         let style = Style::default().fg(Color::Rgb(20, 16, 24)).bg(Color::Rgb(255, 222, 70)).add_modifier(Modifier::BOLD);
-        for (k, &(x0, y0, x1, _)) in rects.iter().enumerate() {
-            if self.t < crate::story::BEAT * k as f32 + 0.15 {
+        for (k, &(x0, y0, wide)) in spots.iter().enumerate() {
+            if self.t < crate::story::BEAT * k as f32 + 0.12 {
                 continue;
             }
-            let width = ((x1 - x0) as usize).saturating_sub(4).max(8);
-            // wrap the caption to the panel
+            let width = (wide.max(10) as usize).min(30);
             let mut lines: Vec<String> = vec![String::new()];
             for word in CAPTIONS[k].split(' ') {
                 let last = lines.last_mut().unwrap();
-                if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width.min(44) {
+                if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width {
                     lines.push(word.to_string());
                 } else {
                     if !last.is_empty() {
@@ -701,7 +700,7 @@ impl Game {
                 }
             }
             for (i, l) in lines.iter().enumerate() {
-                put_text(buf, x0 as u16 + 1, (y0 / 2) as u16 + 1 + i as u16, &format!(" {l} "), style);
+                put_text(buf, x0.max(1) as u16, (y0 / 2) as u16 + 1 + i as u16, &format!(" {l} "), style);
             }
         }
         if crate::story::comic_done(self.t) {
