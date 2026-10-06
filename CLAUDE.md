@@ -453,14 +453,8 @@ David wants all of these (2026-10-06), roughly in this order:
       cat, and of the lads while holding an item.
       **Ruled out by David (2026-10-06): Krampus, and Tio de Nadal (the
       Catalan log).** Ded Moroz and Snegurochka are on the Birch
-      Wood (2026-10-06). **Needs David's decision: the Mari Lwyd** (Welsh:
-      a horse's skull on a pole under a white sheet, going door to door
-      for a battle of rhymes, the pwnco). It is properly eerie, and
-      Krampus was ruled out for being scary, so it waits for a yes or no.
-      If yes, the idea: in Gingerbread Village she goes from cottage to
-      cottage across the road, jaw clacking; whoever she reaches she
-      challenges, and you shake her off by hopping in time (a quick
-      rhythm prompt) or lose speed
+      Wood (2026-10-06). **The Mari Lwyd: ruled out by David (2026-10-06,
+      "lovely but no, not for this game")**. No folklore ideas left open
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
 - [x] A course selection page (2026-10-06, David: "once we have a few
