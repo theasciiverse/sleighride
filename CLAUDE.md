@@ -25,11 +25,17 @@ lap 2 he comes after them in the one thing they left behind, the
 snowplough, and hunts whoever is leading: he has a list, he is checking
 it twice, and whoever is out in front is clearly the ringleader.
 
-The story is four pages (`game::STORY`) shown once per run between the
-title and the racer choice, each over its own still picture
-(`story.rs`): Santa asleep by the workshop fire; Bob with the keys in the
-garage; the empty garage at dawn with only the plough; the NAUGHTY list
-being ticked, twice. The text fades in word by word, centred low.
+The intro is one action-comic page (`story.rs`, captions in
+`game::CAPTIONS`), shown once per run between the title and the racer
+choice: three panels slam in 1.5 s apart, each with a zoom and a white
+flash, a sound word in a starburst and a yellow caption box. SNORE!:
+Santa out cold by the workshop fire ("CHRISTMAS MORNING. SANTA'S OUT
+COLD."). VROOOM!: everything with runners bursting out of the garage
+doors ("THE ELVES FOUND THE KEYS!"). HONK!!: Santa charging in the plough
+("SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!"). About five
+seconds in all; Enter shows the whole page, then races. (It replaced a
+four-page story with typed-out text, 2026-10-06: David wanted it shorter
+and punchier, "pow pow pow", with more action.)
 
 When Santa catches the ringleader he gives them a good clip round the ear
 (an oversized mitten swings in, dizzy stars), "YOU'RE ON SANTA'S NAUGHTY
@@ -347,8 +353,8 @@ David wants all of these (2026-10-06), roughly in this order:
       tornadoes, dropped presents), looking further on slippery ice.
 - [ ] Folklore hazards still to come: the Yule Cat (Jolakotturinn),
       Krampus as a second chaser, the Yule Lads stealing items
-- [ ] The intro as an action-comic page (David, 2026-10-06): punchier,
-      shorter text, three panels revealed one by one
+- [x] The intro as an action-comic page (David, 2026-10-06): see the
+      premise section
 
 ## History
 

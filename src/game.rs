@@ -24,21 +24,12 @@ use std::time::Instant;
 /// The name on the splash screen.
 pub const TITLE: &str = "SLEIGHRIDE";
 
-/// The story, a page at a time.
-const STORY: [&str; 4] = [
-    "Christmas morning, six o'clock. Every present delivered, every chimney climbed. Santa kicks off his boots, sinks into his armchair by the workshop fire, and is snoring before his cocoa has cooled.",
-    "The elves have worked every single day since last January. Bob holds up a jangling ring of keys: the big sleigh, the reindeer stables, the snowmobile shed. \"One lap of the lake,\" he whispers. \"He'll never know.\"",
-    "Three laps later Santa wakes to an empty garage. Only the snowplough is left. His cocoa is cold. His boots are on the wrong feet.",
-    "He has a list. He is checking it twice. And whoever is out in front is clearly the ringleader, and is getting a good clip round the ear.",
+/// The intro's captions, one per comic panel: short and punchy.
+const CAPTIONS: [&str; crate::story::PANELS] = [
+    "CHRISTMAS MORNING. SANTA'S OUT COLD.",
+    "THE ELVES FOUND THE KEYS!",
+    "SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!",
 ];
-/// Words a second as the story fades in, and how long each word takes.
-const WORDS_PER_SEC: f32 = 4.0;
-const WORD_FADE: f32 = 0.8;
-
-/// Seconds until the whole page is showing.
-fn page_time(page: usize) -> f32 {
-    STORY[page].split(' ').count() as f32 / WORDS_PER_SEC + WORD_FADE
-}
 
 /// Difficulty: its name and the rivals' pace (a share of their top speed).
 /// The rivals drift perfectly, so at full pace they are a hard race; a
@@ -64,9 +55,8 @@ pub struct Game {
     pub level: usize,
     /// Racing with others over the network: hosting, joined, or looking.
     pub link: Option<Box<Link>>,
-    /// The story has been shown this run; and which page is up.
+    /// The intro comic has been shown this run.
     story_seen: bool,
-    page: usize,
     /// Sounds to play, with volume; the main loop takes them each frame.
     pub sounds: Vec<(Sfx, f32)>,
     /// Mute and music toggles for the main loop.
@@ -120,7 +110,7 @@ impl Game {
         race.rival_pace = DIFFICULTY[level].1;
         let cam = Camera::behind(&race.racers[pick].kart);
         let birds = crate::birds::Birds::new(&race.track);
-        let mut g = Game { phase, course, pick, level, link: None, story_seen: false, page: 0, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, birds, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        let mut g = Game { phase, course, pick, level, link: None, story_seen: false, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, birds, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
         if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
@@ -214,18 +204,12 @@ impl Game {
                 (_, Cmd::Exit) => self.exit = true,
                 (_, Cmd::Help) => self.help = !self.help,
                 (_, Cmd::Back) | (_, Cmd::Confirm) if self.help => self.help = false,
-                (Phase::Title, Cmd::Confirm) if !self.story_seen => {
-                    self.page = 0;
-                    self.screen(Phase::Story);
-                }
+                (Phase::Title, Cmd::Confirm) if !self.story_seen => self.screen(Phase::Story),
                 (Phase::Title, Cmd::Confirm) => self.screen(Phase::Select),
                 (Phase::Story, Cmd::Confirm) => {
-                    if self.t < page_time(self.page) {
-                        // show the whole page first
-                        self.t = 1e3;
-                    } else if self.page + 1 < STORY.len() {
-                        self.page += 1;
-                        self.t = 0.0;
+                    if !crate::story::comic_done(self.t) {
+                        // show the whole page at once
+                        self.t = 30.0;
                     } else {
                         self.story_seen = true;
                         self.screen(Phase::Select);
@@ -653,7 +637,7 @@ impl Game {
         let mut cv = if self.phase == Phase::Story {
             // the story has its own pictures, not the race
             let mut cv = Canvas::new(area.width, area.height);
-            crate::story::draw(&mut cv, self.page, self.t);
+            crate::story::draw_comic(&mut cv, self.t);
             cv
         } else {
             self.scene_canvas(area.width, area.height)
@@ -687,37 +671,35 @@ impl Game {
     }
 
     fn draw_story(&self, buf: &mut Buffer, area: Rect) {
-        let width = (area.width as usize).saturating_sub(10).clamp(20, 60);
-        // wrap by words into lines, keeping each word's place in the page
-        let mut lines: Vec<Vec<(usize, &str)>> = vec![Vec::new()];
-        let mut len = 0;
-        for (k, word) in STORY[self.page].split(' ').enumerate() {
-            if len > 0 && len + 1 + word.chars().count() > width {
-                lines.push(Vec::new());
-                len = 0;
+        // a yellow caption box in each panel's top-left corner as it lands
+        let rects = crate::story::comic_rects(area.width as usize, area.height as usize * 2);
+        let style = Style::default().fg(Color::Rgb(20, 16, 24)).bg(Color::Rgb(255, 222, 70)).add_modifier(Modifier::BOLD);
+        for (k, &(x0, y0, x1, _)) in rects.iter().enumerate() {
+            if self.t < crate::story::BEAT * k as f32 + 0.15 {
+                continue;
             }
-            len += word.chars().count() + if len > 0 { 1 } else { 0 };
-            lines.last_mut().unwrap().push((k, word));
-        }
-        let band = (lines.len() + 2) as u16;
-        let y0 = (area.height as f32 * 0.66) as u16;
-        let y0 = y0.min(area.height.saturating_sub(band + 2));
-        let bg = (14u8, 18u8, 44u8);
-        for y in 0..band {
-            put_text(buf, 0, y0 + y, &" ".repeat(area.width as usize), panel_style());
-        }
-        for (i, line) in lines.iter().enumerate() {
-            let text_len: usize = line.iter().map(|(_, w)| w.chars().count()).sum::<usize>() + line.len().saturating_sub(1);
-            let mut x = area.width.saturating_sub(text_len as u16) / 2;
-            for (k, word) in line {
-                let a = ((self.t - *k as f32 / WORDS_PER_SEC) / WORD_FADE).clamp(0.0, 1.0);
-                let c = render::mix(bg, (240, 244, 255), a);
-                put_text(buf, x, y0 + 1 + i as u16, word, Style::default().fg(Color::Rgb(c.0, c.1, c.2)).bg(Color::Rgb(bg.0, bg.1, bg.2)));
-                x += word.chars().count() as u16 + 1;
+            let width = ((x1 - x0) as usize).saturating_sub(4).max(8);
+            // wrap the caption to the panel
+            let mut lines: Vec<String> = vec![String::new()];
+            for word in CAPTIONS[k].split(' ') {
+                let last = lines.last_mut().unwrap();
+                if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width.min(44) {
+                    lines.push(word.to_string());
+                } else {
+                    if !last.is_empty() {
+                        last.push(' ');
+                    }
+                    last.push_str(word);
+                }
+            }
+            for (i, l) in lines.iter().enumerate() {
+                put_text(buf, x0 as u16 + 1, (y0 / 2) as u16 + 1 + i as u16, &format!(" {l} "), style);
             }
         }
-        let foot = format!("{} / {}    Enter: next    Esc: skip", self.page + 1, STORY.len());
-        put_text(buf, area.width.saturating_sub(foot.len() as u16) / 2, area.height.saturating_sub(1), &foot, accent_style());
+        if crate::story::comic_done(self.t) {
+            let foot = " Enter: RACE! ";
+            put_text(buf, area.width.saturating_sub(foot.len() as u16) / 2, area.height.saturating_sub(1), foot, accent_style());
+        }
     }
 
     fn draw_select_hud(&self, buf: &mut Buffer, area: Rect) {
@@ -1054,7 +1036,7 @@ impl Game {
     pub fn shot(&self, cols: u16, rows: u16) -> Canvas {
         let mut cv = if self.phase == Phase::Story {
             let mut cv = Canvas::new(cols, rows);
-            crate::story::draw(&mut cv, self.page, self.t);
+            crate::story::draw_comic(&mut cv, self.t);
             cv
         } else {
             self.scene_canvas(cols, rows)
@@ -1066,10 +1048,9 @@ impl Game {
         cv
     }
 
-    /// Show a story page, for screenshots.
-    pub fn show_story(&mut self, page: usize, t: f32) {
+    /// Show the intro comic `t` seconds in, for screenshots.
+    pub fn show_story(&mut self, t: f32) {
         self.phase = Phase::Story;
-        self.page = page.min(STORY.len() - 1);
         self.t = t;
     }
 
@@ -1246,9 +1227,9 @@ mod tests {
         assert_eq!(g.phase, Phase::Story, "the story comes first");
         g.t = 30.0;
         let text = screen_text(&g, &input);
-        assert!(text.contains("1 / 4"), "{text}");
-        assert!(text.contains("snoring"), "{text}");
-        // Enter fills a page, then turns it; four pages
+        assert!(text.contains("SANTA'S OUT COLD"), "{text}");
+        assert!(text.contains("Enter: RACE!"), "{text}");
+        // Enter shows the whole page, then moves on
         let mut presses = 0;
         while g.phase == Phase::Story && presses < 12 {
             input.cmds.push(Cmd::Confirm);

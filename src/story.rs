@@ -1,9 +1,11 @@
-//! The story's pictures: one still scene per page, drawn into the pixel
-//! canvas with a little life in each (the fire, the steam, the snow, the
-//! glint of the keys, the ticks going down the list).
+//! The intro: one action-comic page whose three panels slam in one after
+//! another (Santa out cold, the elves bursting out with everything that has
+//! runners, Santa charging in his plough), each with a sound word in a
+//! starburst. The scenes are drawn into the pixel canvas with a little life
+//! in each (the fire, the steam, the snow, speed lines, the spray).
 
 use crate::model::{Model, Pose, Ride};
-use crate::render::{big_text_at, ink_text_at, mix, Canvas, Rgb};
+use crate::render::{big_text_at, mix, Canvas, Rgb};
 use crate::roster::ROSTER;
 use std::sync::OnceLock;
 
@@ -16,7 +18,6 @@ fn hash(x: i32, y: i32) -> u32 {
 
 struct Cast {
     santa_chair: Model,
-    bob_keys: Model,
     sleigh: Model,
     reindeer: Model,
     snowmobile: Model,
@@ -28,7 +29,6 @@ fn cast() -> &'static Cast {
     static C: OnceLock<Cast> = OnceLock::new();
     C.get_or_init(|| Cast {
         santa_chair: Model::santa_armchair(),
-        bob_keys: Model::elf_with_keys(&ROSTER[0].elf),
         sleigh: Model::build(Ride::Sleigh, &ROSTER[0].elf, 0),
         reindeer: Model::build(Ride::Reindeer, &ROSTER[1].elf, 0),
         snowmobile: Model::build(Ride::Snowmobile, &ROSTER[2].elf, 0),
@@ -162,117 +162,189 @@ fn workshop(cv: &mut Canvas, t: f32) {
     }
 }
 
-/// Page 2: the garage at night, Bob with the keys.
-fn garage(cv: &mut Canvas, t: f32, dawn: bool) {
+// ------------------------------------------------------------- the comic
+
+/// Seconds between panels slamming in, and how long a slam takes.
+pub const BEAT: f32 = 1.5;
+const SLAM: f32 = 0.28;
+pub const PANELS: usize = 3;
+
+/// When the whole page is showing.
+pub fn comic_done(t: f32) -> bool {
+    t >= BEAT * (PANELS - 1) as f32 + SLAM + 0.5
+}
+
+/// Panel rectangles in pixels: one wide panel on top, two below.
+/// Edges fall on even rows so captions line up with terminal cells.
+pub fn comic_rects(w: usize, h: usize) -> [(i32, i32, i32, i32); PANELS] {
+    let (w, h) = (w as i32, h as i32);
+    let even = |v: i32| v & !1;
+    let m = 2;
+    let mid = even(h * 50 / 100);
+    let split = w * 47 / 100;
+    [(m, m, w - m, mid - 2), (m, mid + 2, split - 2, h - m), (split + 2, mid + 2, w - m, h - m)]
+}
+
+/// An action scene for panel 2: everything with runners bursting out of
+/// the workshop doors into the snow.
+fn breakout(cv: &mut Canvas, t: f32) {
     let (w, h) = (cv.w as f32, cv.h as f32);
-    let floor = (h * 0.58) as i32;
-    room(cv, floor, if dawn { 0.7 } else { 0.25 });
-    // the big doors, open on the snow outside
-    let (dx0, dx1, dy0) = ((w * 0.36) as i32, (w * 0.64) as i32, (h * 0.14) as i32);
-    let sky = if dawn { [(80, 60, 120), (255, 170, 120)] } else { [(8, 12, 40), (40, 60, 110)] };
-    for y in dy0..floor {
-        for x in dx0..dx1 {
-            let c = if y > floor - (h * 0.1) as i32 { if dawn { (250, 226, 214) } else { (180, 196, 230) } } else { mix(sky[0], sky[1], (y - dy0) as f32 / (floor - dy0) as f32) };
+    // night snow outside, the open doors glowing behind
+    for y in 0..cv.h as i32 {
+        for x in 0..cv.w as i32 {
+            let f = y as f32 / h;
+            let c = if f < 0.45 { mix((14, 18, 52), (46, 60, 120), f / 0.45) } else { mix((200, 214, 240), (240, 244, 255), (f - 0.45) / 0.55) };
             cv.put(x, y, c);
         }
     }
-    if !dawn {
-        // a ribbon of aurora through the door
-        for x in dx0..dx1 {
-            let y = dy0 as f32 + (floor - dy0) as f32 * (0.3 + 0.1 * ((x as f32) * 0.15 + t * 0.6).sin());
-            glow(cv, x as f32, y, 4.0, (60, 220, 150), 0.25);
+    rect(cv, (w * 0.3) as i32, (h * 0.12) as i32, (w * 0.7) as i32, (h * 0.5) as i32, (60, 38, 24));
+    rect(cv, (w * 0.34) as i32, (h * 0.17) as i32, (w * 0.66) as i32, (h * 0.5) as i32, (255, 214, 140));
+    glow(cv, w * 0.5, h * 0.45, w * 0.5, (255, 200, 120), 0.35);
+    // speed lines, bursting outward
+    for k in 0..40 {
+        let a = k as f32 / 40.0 * std::f32::consts::TAU + (hash(k, 3) % 100) as f32 * 0.01;
+        let r0 = w * 0.18 + ((t * 3.0 + k as f32 * 0.37).fract()) * w * 0.2;
+        for s in 0..(w * 0.12) as i32 {
+            let r = r0 + s as f32;
+            cv.blend((w * 0.5 + a.cos() * r) as i32, (h * 0.45 + a.sin() * r * 0.6) as i32, (255, 255, 255), 0.5);
         }
     }
-    rect(cv, dx0 - 3, dy0 - 3, dx1 + 3, dy0, (60, 38, 24));
-    rect(cv, dx0 - 3, dy0, dx0, floor, (60, 38, 24));
-    rect(cv, dx1, dy0, dx1 + 3, floor, (60, 38, 24));
-    let s = (h / 70.0).max(0.8);
+    let s = (h / 50.0).max(0.8);
     let c = cast();
-    if dawn {
-        // runner tracks out through the door
-        for k in 0..5 {
-            let lane = (k as f32 - 2.0) * w * 0.05;
-            for y in floor..cv.h as i32 {
-                let f = (y - floor) as f32 / (h - floor as f32);
-                let x = w * 0.5 + lane * (0.3 + f * 1.4);
-                cv.blend(x as i32, y, (40, 26, 16), 0.5);
-                cv.blend(x as i32 + 3, y, (40, 26, 16), 0.5);
-            }
-        }
-        // the plough, all that's left, with Santa already in it
-        c.plough.draw(cv, &pose(w * 0.27, h * 0.95, s * 1.25, 0.6));
-        let big = ((h / 22.0) as i32).max(2);
-        let shake = ((t * 30.0).sin() * 1.5) as i32;
-        big_text_at(cv, "!", (w * 0.2) as i32 + shake, (h * 0.12) as i32, big, (240, 60, 60));
-    } else {
-        // everything with runners, lined up
-        c.reindeer.draw(cv, &pose(w * 0.12, h * 0.72, s * 0.8, 1.5));
-        c.snowmobile.draw(cv, &pose(w * 0.82, h * 0.72, s * 0.8, -1.5));
-        c.toboggan.draw(cv, &pose(w * 0.9, h * 0.92, s * 0.8, -1.4));
-        c.sleigh.draw(cv, &pose(w * 0.27, h * 0.96, s * 1.0, 1.3));
-        // Bob, keys held high, catching the light
-        c.bob_keys.draw(cv, &pose(w * 0.5, h * 0.92, s * 1.5, 0.35));
-        let glint = (t * 3.0).sin().max(0.0);
-        glow(cv, w * 0.5 + s * 1.5 * 4.0, h * 0.92 - s * 1.5 * 19.0 * 0.97, h * 0.07, (255, 240, 160), 0.6 * glint);
-    }
+    // charging at us, fanned out
+    c.reindeer.draw(cv, &pose(w * 0.18, h * 0.86, s * 1.2, 3.6));
+    c.snowmobile.draw(cv, &pose(w * 0.82, h * 0.86, s * 1.2, 2.6));
+    c.toboggan.draw(cv, &pose(w * 0.68, h * 0.66, s * 0.8, 3.0));
+    c.sleigh.draw(cv, &pose(w * 0.46, h * 0.98, s * 1.7, 3.3));
 }
 
-/// Page 4: the list.
-fn the_list(cv: &mut Canvas, t: f32) {
+/// Panel 3: Santa in his plough, charging, headlights blazing.
+fn charge(cv: &mut Canvas, t: f32) {
     let (w, h) = (cv.w as f32, cv.h as f32);
-    // the desk, by candlelight
     for y in 0..cv.h as i32 {
         for x in 0..cv.w as i32 {
-            let grain = (hash(x / 6, y) % 7) as f32 / 7.0;
-            cv.put(x, y, mix((58, 34, 22), (84, 52, 32), grain * 0.5));
+            let f = y as f32 / h;
+            let c = if f < 0.4 { mix((120, 30, 40), (240, 120, 80), f / 0.4) } else { mix((214, 222, 244), (246, 248, 255), (f - 0.4) / 0.6) };
+            cv.put(x, y, c);
         }
     }
-    glow(cv, w * 0.82, h * 0.25, h * 0.9, (255, 190, 100), 0.35);
-    rect(cv, (w * 0.8) as i32, (h * 0.22) as i32, (w * 0.84) as i32, (h * 0.5) as i32, (240, 232, 210));
-    let flame = 0.5 + 0.5 * (t * 12.0).sin();
-    glow(cv, w * 0.82, h * 0.19, 4.0 + flame * 2.0, (255, 220, 120), 1.0);
-    // the scroll, unrolled
-    let (sx0, sx1) = ((w * 0.28) as i32, (w * 0.66) as i32);
-    let (sy0, sy1) = ((h * 0.05) as i32, (h * 0.66) as i32);
-    for y in sy0..sy1 {
-        for x in sx0..sx1 {
-            let n = (hash(x / 3, y / 3) % 6) as f32 / 6.0;
-            cv.put(x, y, mix((236, 222, 186), (214, 196, 156), n * 0.6));
-        }
-    }
-    rect(cv, sx0 - 3, sy0 - 2, sx1 + 3, sy0 + 2, (196, 170, 120));
-    rect(cv, sx0 - 3, sy1 - 2, sx1 + 3, sy1 + 2, (196, 170, 120));
-    let scale = ((h / 60.0) as i32).max(1);
-    let line = 7 * scale;
-    ink_text_at(cv, "NAUGHTY", sx0 + 4 * scale, sy0 + 4 * scale, scale, (180, 30, 40));
-    ink_text_at(cv, "NAUGHTY", sx0 + 4 * scale + 1, sy0 + 4 * scale, scale, (180, 30, 40));
-    // names, and a tick going down the list, then a second: checked twice
-    for (i, who) in ROSTER.iter().enumerate() {
-        let y = sy0 + 4 * scale + line * (i as i32 + 1) + 2 * scale;
-        let name = who.name.to_uppercase();
-        ink_text_at(cv, &name, sx0 + 4 * scale, y, scale, (60, 40, 30));
-        for pass in 0..2 {
-            let due = 1.0 + i as f32 * 0.35 + pass as f32 * 2.4;
-            if t > due {
-                let tx = sx1 - (8 - pass * 4) * scale;
-                let ty = y + 4 * scale;
-                for k in 0..3 * scale {
-                    cv.put(tx - k / 2, ty - k / 2 + 2 * scale / 2, (190, 30, 40));
-                }
-                for k in 0..5 * scale {
-                    cv.put(tx + k / 2, ty - k, (190, 30, 40));
-                }
+    // furious rays behind him
+    for k in 0..18 {
+        let a = k as f32 / 18.0 * std::f32::consts::TAU + t * 0.4;
+        for r in (w * 0.1) as i32..(w * 0.9) as i32 {
+            if (r / 3) % 2 == 0 {
+                cv.blend((w * 0.5 + a.cos() * r as f32) as i32, (h * 0.42 + a.sin() * r as f32) as i32, (255, 230, 120), 0.18);
             }
         }
     }
+    let s = (h / 45.0).max(0.8);
+    let shake = (t * 40.0).sin() * s * 0.6;
+    let p = pose(w * 0.5 + shake, h * 0.95, s * 1.1, 2.75);
+    cast().plough.draw(cv, &p);
+    // headlights and spray
+    glow(cv, w * 0.36, h * 0.8, h * 0.2, (255, 250, 200), 0.6);
+    glow(cv, w * 0.64, h * 0.8, h * 0.2, (255, 250, 200), 0.6);
+    for k in 0..60 {
+        let hk = hash(k, (t * 20.0) as i32);
+        let (x, y) = ((hk % cv.w as u32) as i32, (h * 0.75) as i32 + ((hk >> 10) % (h * 0.25) as u32) as i32);
+        cv.blend(x, y, (255, 255, 255), 0.7);
+    }
 }
 
-/// Draw the picture for a story page, `t` seconds after it came up.
-pub fn draw(cv: &mut Canvas, page: usize, t: f32) {
-    match page {
-        0 => workshop(cv, t),
-        1 => garage(cv, t, false),
-        2 => garage(cv, t, true),
-        _ => the_list(cv, t),
+/// A comic starburst behind a sound word.
+fn burst(cv: &mut Canvas, cx: f32, cy: f32, r: f32, word: &str, scale: i32, spin: f32) {
+    let points = 14;
+    let inside = |x: f32, y: f32| -> Option<bool> {
+        let (dx, dy) = (x - cx, (y - cy) * 1.4);
+        let a = dy.atan2(dx) + spin;
+        let k = (a / std::f32::consts::TAU * points as f32 * 2.0).rem_euclid(points as f32 * 2.0);
+        let f = k.fract();
+        let edge = if (k as i32) % 2 == 0 { r * (0.62 + 0.38 * f) } else { r * (1.0 - 0.38 * f) };
+        let d = dx.hypot(dy);
+        (d < edge).then_some(d < edge - 2.0)
+    };
+    for y in (cy - r) as i32..(cy + r) as i32 {
+        for x in (cx - r * 1.2) as i32..(cx + r * 1.2) as i32 {
+            match inside(x as f32, y as f32) {
+                Some(true) => cv.put(x, y, (255, 214, 40)),
+                Some(false) => cv.put(x, y, (20, 16, 24)),
+                None => {}
+            }
+        }
+    }
+    let width = crate::render::big_width(word, scale);
+    big_text_at(cv, word, cx as i32 - width / 2, cy as i32 - 5 * scale / 2, scale, (226, 40, 46));
+}
+
+/// The intro page: three panels slamming in one after another.
+pub fn draw_comic(cv: &mut Canvas, t: f32) {
+    // the page: off-white paper with a faint halftone
+    for y in 0..cv.h as i32 {
+        for x in 0..cv.w as i32 {
+            let dot = (x % 4 == 0) && (y % 4 == 0);
+            cv.put(x, y, if dot { (226, 220, 206) } else { (246, 242, 230) });
+        }
+    }
+    let rects = comic_rects(cv.w, cv.h);
+    let sfx = ["SNORE!", "VROOOM!", "HONK!!"];
+    for (k, &(x0, y0, x1, y1)) in rects.iter().enumerate() {
+        let since = t - BEAT * k as f32;
+        if since < 0.0 {
+            continue;
+        }
+        let (pw, ph) = ((x1 - x0) as usize, (y1 - y0) as usize);
+        let mut panel = Canvas::new(pw as u16, (ph / 2).max(1) as u16);
+        match k {
+            0 => workshop(&mut panel, since),
+            1 => breakout(&mut panel, since),
+            _ => charge(&mut panel, since),
+        }
+        // slam: in from a little larger, with a white flash
+        let slam = (since / SLAM).min(1.0);
+        let zoom = 1.0 + (1.0 - slam) * 0.35;
+        let flash = (1.0 - slam) * 0.8;
+        let (cx, cy) = (pw as f32 / 2.0, ph as f32 / 2.0);
+        for y in 0..ph as i32 {
+            for x in 0..pw as i32 {
+                let sx = (cx + (x as f32 - cx) / zoom) as usize;
+                let sy = (cy + (y as f32 - cy) / zoom) as usize;
+                if sx < panel.w && sy < panel.h {
+                    let c = panel.px[sy * panel.w + sx];
+                    cv.put(x0 + x, y0 + y, mix(c, (255, 255, 255), flash));
+                }
+            }
+        }
+        // a heavy black border
+        for b in 0..2 {
+            for x in x0 - b..x1 + b {
+                cv.put(x, y0 - b - 1, (16, 14, 20));
+                cv.put(x, y1 + b, (16, 14, 20));
+            }
+            for y in y0 - b - 1..y1 + b + 1 {
+                cv.put(x0 - b - 1, y, (16, 14, 20));
+                cv.put(x1 + b, y, (16, 14, 20));
+            }
+        }
+        // the sound word pops a beat after the panel lands
+        if since > SLAM * 0.8 {
+            let pop = ((since - SLAM * 0.8) / 0.18).min(1.0);
+            // as big as fits comfortably in the panel
+            let pw = (x1 - x0) as f32;
+            let mut scale = 2;
+            while scale > 1 && crate::render::big_width(sfx[k], scale) as f32 > pw * 0.42 {
+                scale -= 1;
+            }
+            let word = crate::render::big_width(sfx[k], scale) as f32;
+            let r = (word * 0.62 + 3.0 * scale as f32) * (0.6 + 0.4 * pop);
+            // tucked into a corner, wholly inside the panel
+            let (bx, by) = match k {
+                0 => (x1 as f32 - r * 1.25, y0 as f32 + r * 0.85),
+                1 => (x0 as f32 + r * 1.25, y0 as f32 + r * 0.95 + 6.0),
+                _ => (x1 as f32 - r * 1.4, y0 as f32 + r * 0.95 + 6.0),
+            };
+            if pop >= 0.6 {
+                burst(cv, bx, by, r, sfx[k], scale, 0.3 * k as f32 + since * 0.15);
+            }
+        }
     }
 }

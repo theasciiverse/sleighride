@@ -1194,24 +1194,6 @@ pub fn big_text(cv: &mut Canvas, text: &str, cy: i32, scale: i32, fill: Rgb) {
     }
 }
 
-/// Pixel-font text with no outline, as ink on paper.
-pub fn ink_text_at(cv: &mut Canvas, text: &str, x0: i32, y0: i32, scale: i32, ink: Rgb) {
-    for (ci, ch) in text.chars().enumerate() {
-        let g = glyph(ch);
-        for (gy, row) in g.iter().enumerate() {
-            for gx in 0..3 {
-                if row >> (2 - gx) & 1 == 1 {
-                    for py in 0..scale {
-                        for px in 0..scale {
-                            cv.put(x0 + (ci as i32 * 4 + gx) * scale + px, y0 + gy as i32 * scale + py, ink);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 pub fn big_width(text: &str, scale: i32) -> i32 {
     text.chars().count() as i32 * 4 * scale - scale
 }

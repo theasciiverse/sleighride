@@ -572,27 +572,6 @@ impl Model {
         Model::finish(g, 12.0, 1.0, [[0.0, 0.0, 0.0]; 2])
     }
 
-    /// An elf standing, one arm up holding a ring of keys.
-    pub fn elf_with_keys(e: &Elf) -> Model {
-        let mut g = Grid::new();
-        for side in [-2, 2] {
-            g.block((6, 7), (side - 1, side), (1, 5), darker(e.coat));
-            g.block((6, 8), (side - 1, side), (0, 0), BLACK);
-        }
-        g.elf(7, 6, 1, e, 0);
-        // the right arm raised, the ring of keys up high
-        g.line((7.0, 3.0, 9.0), (8.0, 4.0, 16.0), e.coat);
-        g.set(8, 4, 17, WHITE);
-        for k in 0..12 {
-            let a = k as f32 / 12.0 * std::f32::consts::TAU;
-            g.set((8.0 + 1.6 * a.cos()).round() as i32, 5, (19.0 + 1.6 * a.sin()).round() as i32, GOLD);
-        }
-        for (dx, len) in [(-1, 3), (0, 4), (1, 3)] {
-            g.line((8.0 + dx as f32, 5.0, 17.5), (8.0 + dx as f32 * 1.5, 5.0, 17.5 - len as f32), GOLD_DARK);
-        }
-        Model::finish(g, 7.0, 1.0, [[0.0, 0.0, 0.0]; 2])
-    }
-
     /// A penguin: black back, white front, orange beak and feet.
     pub fn penguin() -> Model {
         let mut g = Grid::new();

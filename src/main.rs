@@ -74,8 +74,8 @@ fn main() -> io::Result<()> {
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
         }
-        if let Some(page) = args.iter().position(|a| a == "--story").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()) {
-            g.show_story(page.max(1) - 1, secs);
+        if args.iter().any(|a| a == "--story") {
+            g.show_story(secs);
             std::fs::write(get(1), g.shot(cols, rows).ppm())?;
             return Ok(());
         }
