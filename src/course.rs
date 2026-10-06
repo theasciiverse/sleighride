@@ -14,7 +14,7 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 
 /// The courses, in the order the game numbers them.
-const FILES: [&str; 8] = [
+const FILES: [&str; 9] = [
     include_str!("../courses/1-frozen-lake.toml"),
     include_str!("../courses/2-eggnogg.toml"),
     include_str!("../courses/3-thin-ice.toml"),
@@ -23,6 +23,7 @@ const FILES: [&str; 8] = [
     include_str!("../courses/6-the-workshop.toml"),
     include_str!("../courses/7-the-glacier.toml"),
     include_str!("../courses/8-the-birch-wood.toml"),
+    include_str!("../courses/9-the-fjord.toml"),
 ];
 
 #[derive(Deserialize, Default, Debug)]

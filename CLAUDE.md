@@ -75,9 +75,10 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (eight; `track::courses()`, one file each in `courses/`):
+- Courses (nine; `track::courses()`, one file each in `courses/`):
   **Thin Ice**, **Candy Cane Forest**, **Gingerbread Village**, **The
-  Workshop**, **The Glacier** and **The Birch Wood** (see Next steps),
+  Workshop**, **The Glacier**, **The Birch Wood** and **The Fjord** (see
+  Next steps),
   **Frozen Lake** (aurora night, ice cracks, two ice patches; hills and two
   kickers, see below; the learner course, so no weather or wildlife since
   2026-10-06, David: "we have overloaded the first track") and
@@ -383,6 +384,12 @@ David wants all of these (2026-10-06), roughly in this order:
         (the Snow Maiden) further on hands a present to anyone in the back
         half of the field who passes empty-handed ("A GIFT FROM
         SNEGUROCHKA!"), once per racer every 25 s: the Yule Lads' opposite
+      - [x] **The Fjord** (2026-10-06): a cold, clear morning (`FJORD`
+        theme: dark mountains, deep green-blue fjord ice, red-and-white
+        kerbs). Up onto the clifftops, along them 30 high, then a ski jump
+        (a 5-high kicker with a 34-sample run-up) off the cliff down to the
+        frozen fjord, across the ice past four holes, and home. Data only
+        apart from the theme: the first course made just by writing a file
       More course ideas welcome
 - [x] Weather (2026-10-06, `weather.rs`): blizzards on Thin Ice (Frozen
       Lake had them too until it became the learner course): a 22 s calm at the start, then building 6 s, blowing
@@ -446,7 +453,14 @@ David wants all of these (2026-10-06), roughly in this order:
       cat, and of the lads while holding an item.
       **Ruled out by David (2026-10-06): Krampus, and Tio de Nadal (the
       Catalan log).** Ded Moroz and Snegurochka are on the Birch
-      Wood (2026-10-06). Still open: Mari Lwyd
+      Wood (2026-10-06). **Needs David's decision: the Mari Lwyd** (Welsh:
+      a horse's skull on a pole under a white sheet, going door to door
+      for a battle of rhymes, the pwnco). It is properly eerie, and
+      Krampus was ruled out for being scary, so it waits for a yes or no.
+      If yes, the idea: in Gingerbread Village she goes from cottage to
+      cottage across the road, jaw clacking; whoever she reaches she
+      challenges, and you shake her off by hopping in time (a quick
+      rhythm prompt) or lose speed
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
 - [x] A course selection page (2026-10-06, David: "once we have a few

@@ -40,6 +40,7 @@ pub fn theme_named(name: &str) -> Option<Theme> {
         "workshop" => WORKSHOP,
         "glacier" => GLACIER,
         "birch" => BIRCH,
+        "fjord" => FJORD,
         _ => return None,
     })
 }
@@ -327,6 +328,28 @@ pub const BIRCH: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: true,
+};
+
+/// The Fjord: a clear, cold morning between dark mountains, the fjord
+/// frozen deep green-blue, red-and-white kerbs.
+pub const FJORD: Theme = Theme {
+    road: (164, 172, 190),
+    kerb: [(200, 30, 44), (244, 246, 250)],
+    powder: [(210, 222, 238), (242, 248, 255)],
+    bank: [(170, 186, 214), (246, 250, 255)],
+    lake: [(70, 128, 150), (104, 160, 178), (200, 232, 240)],
+    flecks: false,
+    ice: (170, 222, 240),
+    sky: [(60, 100, 160), (236, 214, 200)],
+    haze: (206, 216, 232),
+    hills: [(70, 82, 110), (40, 48, 72)],
+    aurora: false,
+    birds: (40, 40, 56),
+    canes: false,
+    houses: false,
+    indoors: false,
+    seracs: false,
+    birches: false,
 };
 
 pub const MORNING: Theme = Theme {
