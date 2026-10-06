@@ -34,7 +34,15 @@ const FRAME: Duration = Duration::from_micros(16_667);
 
 fn main() -> io::Result<()> {
     // Session logging: RUST_LOG=debug sleighride 2>sleighride.log
-    env_logger::init();
+    let mut logger = env_logger::Builder::from_default_env();
+    if std::io::IsTerminal::is_terminal(&io::stderr()) {
+        // the game owns the terminal: anything logged straight to it (the
+        // gamepad library complaining when a pad is unplugged, say) lands on
+        // top of the picture and knocks the screen out of line. Logs only
+        // go to stderr when it is redirected to a file.
+        logger.target(env_logger::Target::Pipe(Box::new(io::sink())));
+    }
+    logger.init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
@@ -211,6 +219,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, game: &mut Game, input: &mut Inp
         }
         let (rides, music, chased) = game.soundscape();
         audio.set(&rides, music, chased, game.wind());
+        if std::mem::take(&mut input.repaint) {
+            terminal.clear()?;
+        }
         terminal.draw(|f| game.draw(f, input))?;
         if snapshot.elapsed() >= SNAPSHOT_EVERY {
             snapshot = Instant::now();

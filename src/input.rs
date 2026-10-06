@@ -120,6 +120,9 @@ pub struct Input {
     gilrs: Option<gilrs::Gilrs>,
     pub pad_name: Option<String>,
     pad: Pad,
+    /// A pad came or went: redraw the whole screen, in case anything wrote
+    /// to the terminal behind our back as it did.
+    pub repaint: bool,
     /// Keyboard steering as it eases, and when it was last worked out.
     key_steer: f32,
     last: Option<Instant>,
@@ -154,6 +157,7 @@ impl Input {
             gilrs: None,
             pad_name: None,
             pad: Pad::default(),
+            repaint: false,
             key_steer: 0.0,
             last: None,
         }
@@ -238,6 +242,9 @@ impl Input {
             use gilrs::{Axis, Button, EventType};
             let Some(g) = &mut self.gilrs else { return };
             while let Some(ev) = g.next_event() {
+                if matches!(ev.event, EventType::Connected | EventType::Disconnected) {
+                    self.repaint = true;
+                }
                 let pad = g.gamepad(ev.id);
                 if !usable_pad(&pad) {
                     continue;
