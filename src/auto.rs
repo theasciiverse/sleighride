@@ -120,7 +120,9 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         .chain(r.wildlife.penguins.iter().filter(|p| p.gait == crate::wildlife::Gait::Waddling).map(|p| (p.x, p.y, 2.2)))
         .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 5.0)))
         .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 1.5)))
-        .chain(r.traps.iter().map(|t| (t.x, t.y, 2.6)));
+        .chain(r.traps.iter().map(|t| (t.x, t.y, 2.6)))
+        .chain(r.folklore.cat.iter().filter(|c| !matches!(c.state, crate::folklore::Cat::Sitting(_))).map(|c| (c.x, c.y, 5.5)))
+        .chain(r.folklore.lads.iter().filter(|_| me.item.is_some()).filter(|l| l.state == crate::folklore::Lad::Lurking).map(|l| (l.x, l.y, 7.5)));
     let (hc, hs) = (k.travel.cos(), k.travel.sin());
     // on slippery ice a turn takes longer to bite, so look further
     let slippery = matches!(k.surface, crate::track::Surface::BlackIce | crate::track::Surface::Ice);

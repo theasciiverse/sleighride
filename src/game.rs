@@ -523,6 +523,12 @@ impl Game {
                 Note::Twister(i) => (Sfx::Launch, if i == me { None } else { Some(pos(i)) }),
                 Note::Penguin(i) => (Sfx::Honk, if i == me { None } else { Some(pos(i)) }),
                 Note::Swipe(i) => (Sfx::Roar, if i == me { None } else { Some(pos(i)) }),
+                Note::Pounced(i) => (Sfx::Hit, if i == me { None } else { Some(pos(i)) }),
+                Note::Stolen(i) => (Sfx::Giggle, if i == me { None } else { Some(pos(i)) }),
+                Note::Yowl => match self.race.folklore.cat {
+                    Some(c) => (Sfx::Yowl, Some((c.x, c.y))),
+                    None => continue,
+                },
                 _ => continue,
             };
             let v = at.map_or(1.0, |(x, y)| self.near(x, y) * 0.7);
@@ -534,6 +540,8 @@ impl Game {
                 Note::Blizzard if playing => self.flash = Some(("BLIZZARD!".into(), 1.6, (220, 236, 255))),
                 Note::Twister(i) if i == me && playing => self.flash = Some(("WHOOSH!".into(), 1.2, (220, 236, 255))),
                 Note::Swipe(i) if i == me && playing => self.flash = Some(("SWIPED!".into(), 1.2, (240, 236, 222))),
+                Note::Pounced(i) if i == me && playing => self.flash = Some(("YULE CAT!".into(), 1.2, (255, 220, 60))),
+                Note::Stolen(i) if i == me && playing => self.flash = Some(("YULE LAD|STOLE YOUR ITEM!".into(), 1.6, (196, 170, 120))),
                 Note::SantaComing if playing => {
                     let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
                     self.flash = Some((text.into(), 2.0, SANTA_COLOUR));

@@ -178,6 +178,12 @@ pub enum Note {
     Penguin(usize),
     /// Swiped by the polar bear.
     Swipe(usize),
+    /// Caught under the Yule Cat's pounce.
+    Pounced(usize),
+    /// The Yule Cat sprang.
+    Yowl,
+    /// A Yule Lad snatched this racer's item.
+    Stolen(usize),
     Finished(usize),
 }
 
@@ -192,6 +198,7 @@ pub struct Race {
     pub santa: Santa,
     pub weather: crate::weather::Weather,
     pub wildlife: crate::wildlife::Wildlife,
+    pub folklore: crate::folklore::Folklore,
     pub notes: Vec<Note>,
     /// Finishing order, racer indices.
     pub order: Vec<usize>,
@@ -284,9 +291,12 @@ impl Race {
         santa.plough = true;
         let weather = crate::weather::Weather::new(&track, seed);
         let wildlife = crate::wildlife::Wildlife::new(&track);
+        let box_spots: Vec<(f32, f32)> = boxes.iter().map(|b| (b.x, b.y)).collect();
+        let folklore = crate::folklore::Folklore::new(&track, &box_spots);
         Race {
             weather,
             wildlife,
+            folklore,
             track,
             racers,
             clock: 0.0,
@@ -435,6 +445,21 @@ impl Race {
                     crate::wildlife::Wild::Bowled(i) => Note::Penguin(i),
                     crate::wildlife::Wild::Swiped(i) => Note::Swipe(i),
                 });
+            }
+        }
+        {
+            let holding: Vec<bool> = self.racers.iter().map(|r| r.item.is_some() && r.roulette == 0.0).collect();
+            let mut karts: Vec<&mut Kart> = self.racers.iter_mut().map(|r| &mut r.kart).collect();
+            for e in self.folklore.step(DT, &mut karts, &holding, &self.track) {
+                match e {
+                    crate::folklore::Folk::Pounced(i) => self.notes.push(Note::Pounced(i)),
+                    crate::folklore::Folk::Yowl => self.notes.push(Note::Yowl),
+                    crate::folklore::Folk::Stolen(i) => {
+                        self.racers[i].item = None;
+                        self.racers[i].ammo = 0;
+                        self.notes.push(Note::Stolen(i));
+                    }
+                }
             }
         }
         let (px, py) = self.weather.push(DT);
@@ -864,6 +889,7 @@ pub struct Snap {
     santa: Santa,
     weather: crate::weather::Weather,
     wildlife: crate::wildlife::Wildlife,
+    folklore: crate::folklore::Folklore,
     notes: Vec<Note>,
     order: Vec<usize>,
     rival_pace: f32,
@@ -881,6 +907,7 @@ impl Race {
             santa: self.santa.clone(),
             weather: self.weather.clone(),
             wildlife: self.wildlife.clone(),
+            folklore: self.folklore.clone(),
             notes: self.notes.clone(),
             order: self.order.clone(),
             rival_pace: self.rival_pace,
@@ -897,6 +924,7 @@ impl Race {
         self.santa = s.santa;
         self.weather = s.weather;
         self.wildlife = s.wildlife;
+        self.folklore = s.folklore;
         self.notes = s.notes;
         self.order = s.order;
         self.rival_pace = s.rival_pace;

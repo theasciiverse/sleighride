@@ -125,6 +125,9 @@ pub struct Track {
     pub twisters: usize,
     /// Where on the lap penguins cross the road (a polar bear lives there).
     pub penguins: Option<f32>,
+    /// Where the Yule Cat sits, and whether Yule Lads lurk by the boxes.
+    pub yule_cat: Option<f32>,
+    pub yule_lads: bool,
     /// The relief it was built from (read by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub relief: &'static Relief,
@@ -567,6 +570,8 @@ impl Track {
 
     pub fn eggnogg() -> Track {
         let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &EGGNOGG_RELIEF);
+        t.yule_cat = Some(0.38);
+        t.yule_lads = true;
         t.add_ice(&[(0.17, 3.0, 6.0), (0.45, -4.0, 7.0), (0.58, 5.0, 6.0), (0.86, 0.0, 8.0)]);
         t
     }
@@ -574,6 +579,7 @@ impl Track {
     pub fn candy_cane_forest() -> Track {
         let mut t = Track::build("Candy Cane Forest", CANDY_PTS, 14.0, CANDY, &CANDY_RELIEF);
         t.twisters = 1;
+        t.yule_lads = true;
         t.add_ice(&[(0.22, 4.0, 6.0), (0.58, -4.0, 7.0)]);
         t
     }
@@ -643,7 +649,7 @@ impl Track {
         let ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), blizzards: false, twisters: 0, penguins: None, relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
         for &(f, side, r) in relief.holes {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];

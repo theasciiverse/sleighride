@@ -54,9 +54,11 @@ pub enum Sfx {
     Splash,
     Honk,
     Roar,
+    Yowl,
+    Giggle,
 }
 
-const ALL_SFX: [Sfx; 31] = [
+const ALL_SFX: [Sfx; 33] = [
     Sfx::Beep,
     Sfx::Go,
     Sfx::Hop,
@@ -88,6 +90,8 @@ const ALL_SFX: [Sfx; 31] = [
     Sfx::Splash,
     Sfx::Honk,
     Sfx::Roar,
+    Sfx::Yowl,
+    Sfx::Giggle,
 ];
 
 /// What a ride sounds like.
@@ -374,6 +378,19 @@ fn render_sfx(s: Sfx) -> Vec<f32> {
             let env = (t / 0.08).min(1.0) * (1.0 - t / 0.9);
             let growl = saw(t * (95.0 - 30.0 * t)) * (0.6 + 0.4 * (TAU * 22.0 * t).sin());
             (growl * 0.3 + n.next() * 0.18) * env
+        }),
+        Sfx::Yowl => synth(0.8, |t, n| {
+            // a big cat's yowl: a wavering rise and fall with a hiss
+            let f = 380.0 + 260.0 * (t / 0.8 * std::f32::consts::PI).sin() + 20.0 * (TAU * 9.0 * t).sin();
+            let env = (t / 0.05).min(1.0) * (1.0 - t / 0.8);
+            (saw(t * f) * 0.18 + n.next() * 0.08) * env
+        }),
+        Sfx::Giggle => synth(0.6, |t, _| {
+            // quick, high, mischievous
+            let k = (t * 11.0).floor();
+            let on = (t * 11.0).fract() < 0.55;
+            let f = 900.0 + 120.0 * ((k * 1.7).sin());
+            (TAU * f * t).sin() * 0.16 * on as i32 as f32 * (1.0 - t / 0.6)
         }),
         Sfx::Finish => tune(&[(72.0, 0.12), (76.0, 0.12), (79.0, 0.12), (84.0, 0.12), (79.0, 0.12), (84.0, 0.5)], 0.25, square),
     }

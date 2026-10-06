@@ -633,6 +633,77 @@ impl Model {
         Model::finish(g, 12.0, 1.0, [[0.0, 0.0, 0.0]; 2])
     }
 
+    /// The Yule Cat: huge and black with glowing yellow eyes. `pose` 0 sits,
+    /// 1 crouches low to spring, 2 leaps stretched out.
+    pub fn yule_cat(pose: usize) -> Model {
+        let mut g = Grid::new();
+        const FUR: Rgb = (30, 26, 36);
+        const EYE: Rgb = (255, 220, 60);
+        match pose {
+            0 => {
+                g.blob((10.0, 0.0, 7.0), (5.0, 4.0, 7.0), FUR);
+                g.ball((13.0, 0.0, 15.5), 3.6, FUR);
+                for side in [-1.0f32, 1.0] {
+                    g.line((13.0, side * 2.0, 18.5), (12.5, side * 2.8, 21.5), FUR);
+                    g.line((14.0, side * 2.4, 18.5), (12.5, side * 2.8, 21.5), FUR);
+                    g.blob((14.0, side * 3.0, 1.0), (2.0, 1.2, 1.0), FUR);
+                }
+                g.set(16, -1, 16, EYE);
+                g.set(16, 1, 16, EYE);
+                g.set(16, -2, 16, EYE);
+                g.set(16, 2, 16, EYE);
+                // the tail curled round the front
+                for k in 0..=20 {
+                    let a = k as f32 / 20.0 * 3.0;
+                    g.set((6.0 + a.sin() * 6.0) as i32, (a.cos() * 5.0) as i32, 1, FUR);
+                }
+            }
+            1 => {
+                g.blob((10.0, 0.0, 4.0), (8.0, 4.0, 3.5), FUR);
+                g.ball((18.0, 0.0, 5.0), 3.4, FUR);
+                for side in [-1.0f32, 1.0] {
+                    g.line((18.0, side * 2.0, 8.0), (17.5, side * 2.8, 10.5), FUR);
+                }
+                g.set(21, -1, 6, EYE);
+                g.set(21, 1, 6, EYE);
+                g.set(21, -2, 6, EYE);
+                g.set(21, 2, 6, EYE);
+                g.line((2.0, 0.0, 5.0), (0.0, 0.0, 12.0), FUR);
+            }
+            _ => {
+                g.blob((13.0, 0.0, 7.0), (11.0, 3.5, 3.0), FUR);
+                g.ball((24.0, 0.0, 8.5), 3.2, FUR);
+                for side in [-1.0f32, 1.0] {
+                    g.line((24.0, side * 2.0, 11.5), (23.5, side * 2.8, 14.0), FUR);
+                    g.line((20.0, side * 2.5, 5.0), (29.0, side * 2.5, 3.0), FUR);
+                    g.line((6.0, side * 2.5, 5.0), (0.0, side * 2.5, 2.0), FUR);
+                }
+                g.set(27, -1, 9, EYE);
+                g.set(27, 1, 9, EYE);
+                g.line((2.0, 0.0, 8.0), (0.0, 0.0, 11.0), FUR);
+            }
+        }
+        Model::finish(g, 12.0, 1.7, [[0.0, 0.0, 0.0]; 2])
+    }
+
+    /// A Yule Lad: small, hooded, ragged, a sack of loot over his shoulder.
+    pub fn yule_lad() -> Model {
+        let mut g = Grid::new();
+        const RAGS: Rgb = (110, 84, 60);
+        const HOOD: Rgb = (84, 62, 48);
+        for side in [-1, 1] {
+            g.line((6.0, side as f32, 0.0), (6.0, side as f32, 4.0), (60, 46, 36));
+        }
+        g.blob((6.0, 0.0, 6.5), (2.0, 2.2, 3.0), RAGS);
+        g.ball((6.5, 0.0, 10.5), 2.0, SKIN);
+        g.blob((5.8, 0.0, 11.3), (2.4, 2.4, 2.0), HOOD);
+        g.set(8, -1, 10, BLACK);
+        g.set(8, 1, 10, BLACK);
+        g.set(9, 0, 9, (220, 120, 110));
+        g.ball((3.5, 0.0, 9.0), 2.4, (196, 170, 120));
+        Model::finish(g, 6.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
     /// A wrapped present: a box with a ribbon cross and a bow on top.
     pub fn gift(paper: Rgb, ribbon: Rgb) -> Model {
         let mut g = Grid::new();

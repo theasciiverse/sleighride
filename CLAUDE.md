@@ -121,7 +121,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; network races for up to six (`--host`, `--join [ID]`); session logging per the Asciiverse convention
-- 44 tests, including a full six-racer race on each course (winner to last
+- 46 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -184,6 +184,7 @@ cargo run --release -- --race --shot out.ppm 160 45 5a   # ... at the first jump
 cargo run --release -- --race --course 2 --shot out.ppm 160 45 10i   # ... just short of an inlet
 cargo run --release -- --race --course 4 --shot out.ppm 160 45 5t    # ... with a snow tornado ahead
 cargo run --release -- --race --shot out.ppm 160 45 5p               # ... with penguins crossing ahead
+cargo run --release -- --race --course 2 --shot out.ppm 160 45 5K    # ... the Yule Cat mid-pounce ahead
 ```
 
 Use `RUST_LOG=sleighride=debug` rather than plain `debug`: gilrs is chatty.
@@ -351,8 +352,20 @@ David wants all of these (2026-10-06), roughly in this order:
       times a race, as their line only shifted far ahead; they now swerve
       from anything on their path just ahead (holes, penguins, the bear,
       tornadoes, dropped presents), looking further on slippery ice.
-- [ ] Folklore hazards still to come: the Yule Cat (Jolakotturinn),
-      Krampus as a second chaser, the Yule Lads stealing items
+- [x] Folklore hazards (2026-10-06, `folklore.rs`): **the Yule Cat**
+      (Jolakotturinn) on Eggnogg: a huge black cat with glowing eyes by
+      the road; every ~12 s it crouches and wiggles for 1.6 s (the
+      warning), then pounces low across the road, spinning out anyone
+      under it (a yowl, "YULE CAT!"). **The Yule Lads** on Eggnogg and
+      Candy Cane Forest: one lurks in the snow (hood and eyes showing) by
+      each row of present boxes; pass within 6.5 units holding an item
+      and he snatches it and runs off giggling with his sack ("YULE LAD
+      STOLE YOUR ITEM!"), hiding 14 s. Rivals keep clear of a pouncing
+      cat, and of the lads while holding an item.
+      **Needs David's decision:** Krampus (the Alpine horned punisher) as
+      a second chaser? He's a scarier figure for a family game, so not
+      built until you say. Other folklore ideas still open: Ded Moroz and
+      Snegurochka, Tio de Nadal (an item), Mari Lwyd
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
 

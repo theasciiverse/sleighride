@@ -1,6 +1,7 @@
 mod audio;
 mod auto;
 mod birds;
+mod folklore;
 mod game;
 mod input;
 mod kart;
@@ -69,7 +70,10 @@ fn main() -> io::Result<()> {
         let wait_twister = secs_arg.ends_with('t');
         // ...or "p": for penguins on the road just ahead
         let wait_penguins = secs_arg.ends_with('p');
-        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i', 't', 'p']).parse().unwrap_or(10.0));
+        // ...or "k": for the Yule Cat just ahead ("K": mid-pounce)
+        let wait_cat = secs_arg.ends_with('k') || secs_arg.ends_with('K');
+        let pounce = secs_arg.ends_with('K');
+        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i', 't', 'p', 'k', 'K']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
@@ -87,31 +91,35 @@ fn main() -> io::Result<()> {
         while wait_air && !(g.race.racers[me].kart.air && g.race.racers[me].kart.vz < 2.0) && g.race.clock < 600.0 {
             g.run_auto(DT);
         }
- while wait_inlet && g.race.clock < 600.0 && !g.race.track.inlets.iter().any(|&(s0, _)| (s0 + g.race.track.len() - g.race.racers[me].idx) % g.race.track.len() < std::env::var("SLEIGHRIDE_INLET_AHEAD").ok().and_then(|v| v.parse().ok()).unwrap_or(45)) {
-            g.run_auto(DT);
-        }
-        if std::env::var("SLEIGHRIDE_SHOT_DEBUG").is_ok() {
-            let r = &g.race.racers[me];
-            eprintln!("shot at clock {:.2}: racer {} idx {} lap {} pos ({:.0},{:.0}) z {:.1}", g.race.clock, me, r.idx, r.lap, r.kart.x, r.kart.y, r.kart.z);
-        }
-        while wait_twister && g.race.clock < 600.0 && !g.race.weather.twisters.iter().any(|t| {
-            let k = &g.race.racers[me].kart;
-            let (dx, dy) = (t.x - k.x, t.y - k.y);
-            let ahead = dx * k.heading.cos() + dy * k.heading.sin();
-            ahead > 15.0 && ahead < 35.0 && (dx * -k.heading.sin() + dy * k.heading.cos()).abs() < 12.0
-        }) {
-            g.run_auto(DT);
-        }
-        while wait_penguins && g.race.clock < 600.0 && !g.race.wildlife.penguins.iter().any(|p| {
-            let k = &g.race.racers[me].kart;
-            let (dx, dy) = (p.x - k.x, p.y - k.y);
-            let ahead = dx * k.heading.cos() + dy * k.heading.sin();
-            p.gait == wildlife::Gait::Waddling && ahead > 18.0 && ahead < 40.0 && (dx * -k.heading.sin() + dy * k.heading.cos()).abs() < 14.0
-        }) {
+        while wait_inlet && g.race.clock < 600.0 && !g.race.track.inlets.iter().any(|&(s0, _)| (s0 + g.race.track.len() - g.race.racers[me].idx) % g.race.track.len() < std::env::var("SLEIGHRIDE_INLET_AHEAD").ok().and_then(|v| v.parse().ok()).unwrap_or(45)) {
             g.run_auto(DT);
         }
         while wait_clip && !(g.race.racers[me].clipped > 0.0 && g.race.racers[me].clipped < race::CLIP_TIME - 0.2) && g.race.clock < 600.0 {
             g.run_auto(DT);
+        }
+        // something just ahead of the racer, within a lane or two
+        let ahead_of = |g: &Game, x: f32, y: f32| {
+            let k = &g.race.racers[me].kart;
+            let (dx, dy) = (x - k.x, y - k.y);
+            let along = dx * k.heading.cos() + dy * k.heading.sin();
+            let side = -dx * k.heading.sin() + dy * k.heading.cos();
+            along > 15.0 && along < 40.0 && side.abs() < 16.0
+        };
+        while wait_twister && g.race.clock < 600.0 && !g.race.weather.twisters.iter().any(|t| ahead_of(&g, t.x, t.y)) {
+            g.run_auto(DT);
+        }
+        while wait_penguins && g.race.clock < 600.0 && !g.race.wildlife.penguins.iter().any(|p| p.gait == wildlife::Gait::Waddling && ahead_of(&g, p.x, p.y)) {
+            g.run_auto(DT);
+        }
+        while wait_cat && g.race.clock < 900.0 && !g.race.folklore.cat.is_some_and(|c| ahead_of(&g, c.x, c.y) && (!pounce || matches!(c.state, folklore::Cat::Pouncing(t) if t > 0.3))) {
+            g.run_auto(DT);
+        }
+        if std::env::var("SLEIGHRIDE_SHOT_DEBUG").is_ok() {
+            let k = &g.race.racers[me].kart;
+            eprintln!("shot at clock {:.2}: racer {me} pos ({:.0},{:.0}) heading {:.2}", g.race.clock, k.x, k.y, k.heading);
+            if let Some(c) = g.race.folklore.cat {
+                eprintln!("cat at ({:.0},{:.0}) z {:.1} {:?}", c.x, c.y, c.z, c.state);
+            }
         }
         std::fs::write(get(1), g.shot(cols, rows).ppm())?;
         return Ok(());

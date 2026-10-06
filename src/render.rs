@@ -551,11 +551,13 @@ struct Critters {
     penguin: Model,
     bear: [Model; 4],
     bear_reared: Model,
+    cat: [Model; 3],
+    lad: Model,
 }
 
 fn critters() -> &'static Critters {
     static C: OnceLock<Critters> = OnceLock::new();
-    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true) })
+    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true), cat: std::array::from_fn(Model::yule_cat), lad: Model::yule_lad() })
 }
 
 fn gift() -> &'static Model {
@@ -856,6 +858,8 @@ enum Thing {
     Twister(usize),
     Penguin(usize),
     Bear,
+    Cat,
+    Lad(usize),
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
@@ -918,6 +922,14 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     }
     if let Some(b) = &r.wildlife.bear {
         things.push((depth(b.x, b.y), b.x, b.y, Thing::Bear));
+    }
+    if let Some(c) = &r.folklore.cat {
+        things.push((depth(c.x, c.y), c.x, c.y, Thing::Cat));
+    }
+    for (i, l) in r.folklore.lads.iter().enumerate() {
+        if !matches!(l.state, crate::folklore::Lad::Hiding(_)) {
+            things.push((depth(l.x, l.y), l.x, l.y, Thing::Lad(i)));
+        }
     }
     for (i, tw) in r.weather.twisters.iter().enumerate() {
         things.push((depth(tw.x, tw.y), tw.x, tw.y, Thing::Twister(i)));
@@ -1052,6 +1064,32 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 if let Some((pose, sc)) = pose_at(&v, &s.cam, x, y, ground, b.heading, 1.0, haze) {
                     shadow(cv, pose.sx, pose.sy, sc, 4.0);
                     m.draw(cv, &pose);
+                }
+            }
+            Thing::Cat => {
+                let c = r.folklore.cat.unwrap();
+                let (m, wiggle) = match c.state {
+                    crate::folklore::Cat::Sitting(_) => (&critters().cat[0], 0.0),
+                    crate::folklore::Cat::Crouching(t) => (&critters().cat[1], (t * 18.0).sin() * 0.08),
+                    crate::folklore::Cat::Pouncing(_) => (&critters().cat[2], 0.0),
+                };
+                if let Some((sx, sy, sc)) = v.project(&s.cam, x, y, ground) {
+                    shadow(cv, sx, sy, sc, 6.0);
+                }
+                if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, c.z, c.heading, m.size, haze) {
+                    pose.yaw += wiggle;
+                    m.draw(cv, &pose);
+                }
+            }
+            Thing::Lad(i) => {
+                let l = &r.folklore.lads[i];
+                if let Some((mut pose, _)) = pose_at(&v, &s.cam, x, y, ground, l.heading, 1.0, haze) {
+                    match l.state {
+                        // lurking: only his hood and eyes above the snow
+                        crate::folklore::Lad::Lurking => pose.sy += pose.px * 8.0,
+                        _ => pose.sy -= ((s.time * 14.0).sin().abs()) * pose.px * 2.0,
+                    }
+                    critters().lad.draw(cv, &pose);
                 }
             }
             Thing::Pole => {
