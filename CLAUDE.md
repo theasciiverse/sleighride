@@ -75,10 +75,10 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (nine; `track::courses()`, one file each in `courses/`):
+- Courses (ten; `track::courses()`, one file each in `courses/`):
   **Thin Ice**, **Candy Cane Forest**, **Gingerbread Village**, **The
-  Workshop**, **The Glacier**, **The Birch Wood** and **The Fjord** (see
-  Next steps),
+  Workshop**, **The Glacier**, **The Birch Wood**, **The Fjord** and **The
+  Night Market** (see Next steps),
   **Frozen Lake** (aurora night, ice cracks, two ice patches; hills and two
   kickers, see below; the learner course, so no weather or wildlife since
   2026-10-06, David: "we have overloaded the first track") and
@@ -390,6 +390,13 @@ David wants all of these (2026-10-06), roughly in this order:
         (a 5-high kicker with a 34-sample run-up) off the cliff down to the
         frozen fjord, across the ice past four holes, and home. Data only
         apart from the theme: the first course made just by writing a file
+      - [x] **The Night Market** (2026-10-06): a Christmas market by
+        lamplight (`MARKET` theme: deep blue night, green-and-gold kerbs,
+        `Theme::stalls`: wooden stalls with striped awnings, lit counters
+        and twinkling strings of lights among the pines). A stall stands
+        in the road just past a hilltop kicker to jump (as in Gingerbread
+        Village), another on the flat to steer round, and three stands of
+        market-goers throw presents, as in the Workshop but outdoors
       More course ideas welcome
 - [x] Weather (2026-10-06, `weather.rs`): blizzards on Thin Ice (Frozen
       Lake had them too until it became the learner course): a 22 s calm at the start, then building 6 s, blowing

@@ -15,7 +15,7 @@ out is simply not on the course.
 |---|---|
 | `name` | The course's name |
 | `look`, `about` | The course page's two lines: what it looks like, what's on it |
-| `theme` | Colours: `frozen`, `eggnogg`, `morning`, `candy`, `ginger`, `workshop`, `glacier`, `birch` or `fjord` (themes live in `src/track.rs`) |
+| `theme` | Colours: `frozen`, `eggnogg`, `morning`, `candy`, `ginger`, `workshop`, `glacier`, `birch`, `fjord` or `market` (themes live in `src/track.rs`) |
 | `half` | Half the road's width (14 is usual) |
 | `lake` | Height of the lake, or the floor beyond the banks |
 | `walls` | `true` for tall walls instead of slopes down to a lake (indoors) |

@@ -41,6 +41,7 @@ pub fn theme_named(name: &str) -> Option<Theme> {
         "glacier" => GLACIER,
         "birch" => BIRCH,
         "fjord" => FJORD,
+        "market" => MARKET,
         _ => return None,
     })
 }
@@ -75,6 +76,9 @@ pub struct Theme {
     pub seracs: bool,
     /// Bare winter birches instead of pines.
     pub birches: bool,
+    /// Christmas market stalls among the pines (and the huts in the road
+    /// are stalls too).
+    pub stalls: bool,
 }
 
 pub const FROZEN: Theme = Theme {
@@ -95,6 +99,7 @@ pub const FROZEN: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: false,
+    stalls: false,
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -116,6 +121,7 @@ pub const EGGNOGG: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: false,
+    stalls: false,
 };
 
 #[derive(Clone, Copy)]
@@ -240,6 +246,7 @@ pub const CANDY: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: false,
+    stalls: false,
 };
 
 /// Gingerbread Village: an amber evening, icing kerbs, a frozen syrup pond.
@@ -261,6 +268,7 @@ pub const GINGER: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: false,
+    stalls: false,
 };
 
 /// Santa's workshop, indoors: polished floorboards, painted kerbs, wood
@@ -283,6 +291,7 @@ pub const WORKSHOP: Theme = Theme {
     indoors: true,
     seracs: false,
     birches: false,
+    stalls: false,
 };
 
 /// The Glacier: night under the northern lights, packed snow on blue
@@ -305,6 +314,7 @@ pub const GLACIER: Theme = Theme {
     indoors: false,
     seracs: true,
     birches: false,
+    stalls: false,
 };
 
 /// A bright, overcast winter morning.
@@ -328,6 +338,7 @@ pub const BIRCH: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: true,
+    stalls: false,
 };
 
 /// The Fjord: a clear, cold morning between dark mountains, the fjord
@@ -350,6 +361,30 @@ pub const FJORD: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: false,
+    stalls: false,
+};
+
+/// The Night Market: deep blue night, warm lamplight, wooden stalls with
+/// striped awnings and strings of lights, green-and-gold kerbs.
+pub const MARKET: Theme = Theme {
+    road: (150, 150, 176),
+    kerb: [(30, 120, 70), (236, 190, 70)],
+    powder: [(186, 194, 226), (226, 230, 248)],
+    bank: [(150, 160, 200), (220, 226, 246)],
+    lake: [(60, 70, 120), (80, 92, 150), (180, 190, 230)],
+    flecks: false,
+    ice: (170, 210, 240),
+    sky: [(8, 12, 40), (70, 60, 110)],
+    haze: (90, 90, 140),
+    hills: [(60, 64, 110), (36, 40, 76)],
+    aurora: false,
+    birds: (200, 200, 230),
+    canes: false,
+    houses: false,
+    indoors: false,
+    seracs: false,
+    birches: false,
+    stalls: true,
 };
 
 pub const MORNING: Theme = Theme {
@@ -370,6 +405,7 @@ pub const MORNING: Theme = Theme {
     indoors: false,
     seracs: false,
     birches: false,
+    stalls: false,
 };
 
 /// The courses in order, by name, each with a way to build its track

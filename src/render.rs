@@ -696,6 +696,64 @@ fn toy(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog:
 /// A gingerbread house: brown walls with icing trim, a snowy pitched roof
 /// with an icing zigzag, candy buttons and warm lit windows.
 #[allow(clippy::too_many_arguments)]
+/// A Christmas market stall: a wooden hut with a lit counter, a striped
+/// awning, snow on the roof and a string of twinkling lights along it.
+#[allow(clippy::too_many_arguments)]
+fn stall(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb, time: f32) {
+    let w = 10.0 * size * scale;
+    let wall = 6.0 * size * scale;
+    let roof = 3.5 * size * scale;
+    if w < 2.0 {
+        return;
+    }
+    let f = |c: Rgb| mix(c, haze, fog * 0.8);
+    let (x0, x1) = (sx - w / 2.0, sx + w / 2.0);
+    let top = sy - wall;
+    let awning = [(200, 34, 44), (236, 226, 210)];
+    let awning = if seed.sin() > 0.0 { awning } else { [(30, 120, 70), (236, 226, 210)] };
+    for y in top as i32..sy as i32 {
+        let fy = (y as f32 - top) / wall;
+        for x in x0 as i32..x1 as i32 {
+            let fx = (x as f32 - x0) / w;
+            let c = if fy < 0.22 {
+                // the awning, striped, scalloped along its edge
+                let stripe = ((fx * 8.0).floor() as i32).rem_euclid(2);
+                if fy > 0.16 && ((fx * 16.0).fract() - 0.5).abs() > 0.3 { (64, 40, 30) } else { awning[stripe as usize] }
+            } else if fy < 0.62 && fx > 0.08 && fx < 0.92 {
+                // the lit counter window, goods on the shelf
+                let goods = (((fx * 13.0 + seed).floor() as i32).rem_euclid(3), fy > 0.48);
+                match goods {
+                    (0, true) => (226, 70, 60),
+                    (1, true) => (250, 210, 90),
+                    _ => (255, 214, 140),
+                }
+            } else {
+                // wooden boards
+                if ((fy * 9.0).fract()) < 0.12 { (70, 44, 30) } else { (120, 78, 48) }
+            };
+            cv.put(x, y, f(c));
+        }
+    }
+    // the roof, snow on top
+    let peak = top - roof;
+    for y in peak as i32..top as i32 {
+        let fy = (y as f32 - peak) / roof;
+        let half = w * 0.56 * fy;
+        for x in (sx - half) as i32..(sx + half) as i32 {
+            cv.put(x, y, f(if fy < 0.55 { (244, 246, 252) } else { (90, 60, 40) }));
+        }
+    }
+    // a string of lights along the eaves, twinkling
+    let n = (w / 2.0).max(3.0) as i32;
+    for k in 0..n {
+        let x = x0 + (k as f32 + 0.5) * w / n as f32;
+        let sag = ((k as f32 + 0.5) / n as f32 * std::f32::consts::PI).sin() * roof * 0.25;
+        let on = ((time * 3.0 + k as f32 * 1.7 + seed).sin()) > -0.3;
+        let c = [(255, 80, 80), (255, 220, 90), (110, 230, 140), (120, 180, 255)][(k + seed.abs() as i32).rem_euclid(4) as usize];
+        cv.put(x as i32, (top + sag) as i32, if on { c } else { mix(c, (40, 30, 30), 0.6) });
+    }
+}
+
 fn house(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb, time: f32) {
     let w = 9.0 * size * scale;
     let wall = 5.5 * size * scale;
@@ -1257,6 +1315,8 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                         serac(cv, sx, sy, scale, size, x * 0.37 + y, fog, haze);
                     } else if th.canes {
                         cane(cv, sx, sy, scale, size, x, fog, haze);
+                    } else if th.stalls && hash(x as i32, y as i32) % 5 < 2 {
+                        stall(cv, sx, sy, scale, size, x + y, fog, haze, s.time);
                     } else if th.houses && hash(x as i32, y as i32) % 5 < 3 {
                         house(cv, sx, sy, scale, size, x + y, fog, haze, s.time);
                     } else {
@@ -1366,7 +1426,11 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
             Thing::Cottage(i) => {
                 let (_, _, size, _) = r.track.cottages[i];
                 shadow(cv, sx, sy, scale, 9.0 * size);
-                house(cv, sx, sy, scale, size, i as f32 * 7.0 + 3.0, fog, haze, s.time);
+                if th.stalls {
+                    stall(cv, sx, sy, scale, size * 1.1, i as f32 * 7.0 + 3.0, fog, haze, s.time);
+                } else {
+                    house(cv, sx, sy, scale, size, i as f32 * 7.0 + 3.0, fog, haze, s.time);
+                }
             }
             Thing::Cat => {
                 let c = r.folklore.cat.unwrap();

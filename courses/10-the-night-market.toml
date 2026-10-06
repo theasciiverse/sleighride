@@ -1,0 +1,52 @@
+name = "The Night Market"
+look = "A Christmas market by lamplight"
+about = "Jump the stall in the road, dodge another; the crowd throws presents."
+theme = "market"
+half = 14.0
+lake = -10.0
+# market-goers in stands, throwing presents, as fractions of the lap
+stands = [0.15, 0.5, 0.86]
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [160.0, 860.0],
+    [150.0, 620.0],
+    [250.0, 470.0],
+    [170.0, 300.0],
+    [300.0, 150.0],
+    [520.0, 200.0],
+    [600.0, 380.0],
+    [760.0, 300.0],
+    [880.0, 420.0],
+    [860.0, 640.0],
+    [700.0, 700.0],
+    [780.0, 860.0],
+    [560.0, 920.0],
+    [380.0, 820.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.08, 3.0],
+    [0.18, 1.0],
+    [0.26, 9.0],
+    [0.33, 14.0],
+    [0.345, 7.0],
+    [0.4, 4.0],
+    [0.5, 8.0],
+    [0.6, 3.0],
+    [0.66, 2.0],
+    [0.78, 2.0],
+    [0.88, 6.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.33, 3.0, 22]]
+
+# stalls in the road: [fraction of the lap, size]; the first right after
+# the kicker to jump, the second on the flat to steer round
+cottages = [[0.3385, 0.42], [0.72, 0.36]]
+
+# ice patches: [fraction of the lap, offset right, radius]
+ice = [[0.22, 4.0, 6.0], [0.6, -4.0, 6.0]]
