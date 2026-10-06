@@ -276,6 +276,7 @@ impl Game {
                 Event::Trick => Some((Sfx::Zing, 0.5)),
                 Event::Land { trick: true } => Some((Sfx::Trick, 1.0)),
                 Event::Land { trick: false } => Some((Sfx::Land, 1.0)),
+                Event::Splash => Some((Sfx::Splash, 1.0)),
             };
             if let Some(s) = sfx {
                 self.sounds.push((s.0, if playing { s.1 } else { s.1 * 0.4 }));
@@ -313,6 +314,7 @@ impl Game {
                 Event::RocketStart => ("ROCKET START!", (255, 210, 80)),
                 Event::GoodStart => ("GOOD START", (180, 230, 255)),
                 Event::Stall => ("STALLED", (240, 90, 80)),
+                Event::Splash => ("SPLASH!", (120, 190, 255)),
                 _ => continue,
             };
             self.flash = Some((text.into(), 1.2, col));
@@ -373,6 +375,19 @@ impl Game {
             let k = self.race.racers[i].kart.clone();
             if (k.x - cx).hypot(k.y - cy) > 160.0 {
                 continue;
+            }
+            if k.events.contains(&Event::Splash) {
+                // a plume of water and broken ice where they went in
+                for j in 0..30 {
+                    let (a, b, c) = (self.rand(), self.rand(), self.rand());
+                    let ang = a * std::f32::consts::TAU;
+                    let col = if j % 3 == 0 { (250, 252, 255) } else { (110, 170, 230) };
+                    self.particles.push(Particle { x: k.x, y: k.y, z: 0.5, vx: ang.cos() * (3.0 + b * 7.0), vy: ang.sin() * (3.0 + b * 7.0), vz: 10.0 + c * 14.0, life: 1.0 + c * 0.5, colour: col });
+                }
+                if i != self.me() {
+                    let v = self.near(k.x, k.y) * 0.7;
+                    self.sounds.push((Sfx::Splash, v));
+                }
             }
             let (c, s) = (k.heading.cos(), k.heading.sin());
             let spray = k.speed.abs() > 12.0 && (k.drift != 0 || k.surface == Surface::Powder);

@@ -57,7 +57,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses: **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
+- Courses (three; `track::courses()`): **Thin Ice** (see Next steps), **Frozen Lake** (aurora night, ice cracks, two ice patches; hills
   and two kickers, see below) and
   **Eggnogg** (sunset, a creamy eggnog lake flecked with nutmeg, gold kerbs,
   four ice patches, twistier)
@@ -114,7 +114,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 30 tests, including a full six-racer race on each course (winner to last
+- 32 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -274,9 +274,17 @@ David wants all of these (2026-10-06), roughly in this order:
       the snowmobile more accel and grip, so every ride still averages
       3rd to 4th on both courses
 - [ ] Many more courses (and a track format instead of control points in
-      code). David's ideas: **Thin Ice**, run partly or wholly out on a
-      frozen lake, with holes in the ice to steer round (fall in: a
-      splash and a slow, shivering climb out)
+      code). Done so far:
+      - [x] **Thin Ice** (2026-10-06, David's idea): a bright overcast
+        morning (`MORNING` theme); round the hilly north and east shores
+        with blue-and-white kerbs, off the bank onto the frozen lake with a
+        kicker, and home across the ice (`Relief::on_lake`, flat at the
+        lake's level, no kerbs, poles every 45 units, `Surface::BlackIce`
+        at 35% grip). Eight holes in the ice (`Relief::holes`), always
+        leaving a lane: drive in and it's SPLASH!, hauled out 10+ units
+        back, all speed gone, 1.3 s shivering; rivals steer round them
+      More course ideas: a candy-cane forest, a gingerbread village, the
+      workshop itself (indoors?), a glacier under the northern lights
 - [ ] Weather: blizzards (shorter sight, driving snow, gusts), snow
       tornadoes that wander and spin you out
 - [ ] Wildlife: a penguin line crossing the road, a polar bear that

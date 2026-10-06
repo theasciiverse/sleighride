@@ -72,6 +72,8 @@ pub enum Event {
     Trick,
     /// Touched down; a trick landed gives a boost.
     Land { trick: bool },
+    /// Into a hole in the ice.
+    Splash,
 }
 
 #[derive(Clone, Debug)]
@@ -213,6 +215,36 @@ impl Kart {
         self.events.clear();
         self.drive(c, track);
         self.vertical(track);
+        if !self.air && !self.stunned() && !self.plough && track.in_hole(self.x, self.y) {
+            self.splash(track);
+        }
+    }
+
+    /// Fallen through the ice: hauled out a little way back, shivering,
+    /// all speed gone.
+    fn splash(&mut self, track: &Track) {
+        self.events.push(Event::Splash);
+        let n = track.len() as isize;
+        if let Some(i) = track.idx(self.x, self.y) {
+            // back along the road to a spot clear of holes
+            let mut back = 10;
+            loop {
+                let j = ((i as isize - back) % n + n) % n;
+                let (px, py) = track.pts[j as usize];
+                if !track.in_hole(px, py) || back > 60 {
+                    self.x = px;
+                    self.y = py;
+                    self.heading = track.heading_at(j as usize);
+                    break;
+                }
+                back += 5;
+            }
+        }
+        self.travel = self.heading;
+        self.speed = 0.0;
+        self.end_drift(false);
+        self.stun(1.3, 0.0);
+        self.settle(track);
     }
 
     /// Follow the ground, or fly and fall.
@@ -372,6 +404,8 @@ impl Kart {
         let ice = self.surface == Surface::Ice;
         let grip = if self.air {
             0.0
+        } else if self.surface == Surface::BlackIce {
+            st.grip * 0.35
         } else if ice {
             st.grip * 0.1
         } else if self.drift != 0 {
@@ -599,6 +633,20 @@ mod tests {
         }
         assert!(boost);
         assert!(k.boost > 0.0 || boost);
+    }
+
+    #[test]
+    fn a_hole_in_the_ice_means_a_splash_and_a_haul_out() {
+        let t = Track::thin_ice();
+        let (hx, hy, _) = t.holes[2];
+        let mut k = Kart::new(hx, hy, 0.0, crate::roster::ROSTER[0].stats);
+        k.settle(&t);
+        k.speed = 40.0;
+        k.step(Controls { gas: true, ..Default::default() }, &t);
+        assert!(k.events.contains(&Event::Splash));
+        assert_eq!(k.speed, 0.0);
+        assert!(!t.in_hole(k.x, k.y), "hauled out");
+        assert!(k.stunned());
     }
 
     #[test]

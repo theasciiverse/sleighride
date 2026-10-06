@@ -51,9 +51,10 @@ pub enum Sfx {
     Lap,
     Finish,
     Click,
+    Splash,
 }
 
-const ALL_SFX: [Sfx; 28] = [
+const ALL_SFX: [Sfx; 29] = [
     Sfx::Beep,
     Sfx::Go,
     Sfx::Hop,
@@ -82,6 +83,7 @@ const ALL_SFX: [Sfx; 28] = [
     Sfx::Lap,
     Sfx::Finish,
     Sfx::Click,
+    Sfx::Splash,
 ];
 
 /// What a ride sounds like.
@@ -349,6 +351,12 @@ fn render_sfx(s: Sfx) -> Vec<f32> {
             whack + boing
         }),
         Sfx::Lap => synth(0.8, |t, _| (bell(t, 0.8) + bell((t - 0.15).max(0.0), 1.0) * (t > 0.15) as i32 as f32) * 0.35),
+        Sfx::Splash => synth(0.9, |t, n| {
+            // the plunge, then bubbles
+            let plunge = n.next() * (-t * 9.0).exp() * 0.45;
+            let bub = (TAU * (500.0 + 300.0 * (t * 37.0).sin()) * t).sin() * 0.12 * ((t * 23.0).fract() < 0.3) as i32 as f32 * (1.0 - t / 0.9);
+            plunge + bub
+        }),
         Sfx::Finish => tune(&[(72.0, 0.12), (76.0, 0.12), (79.0, 0.12), (84.0, 0.12), (79.0, 0.12), (84.0, 0.5)], 0.25, square),
     }
 }

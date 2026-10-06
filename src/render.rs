@@ -257,6 +257,32 @@ fn ground_colour(track: &Track, x: f32, y: f32) -> Rgb {
     let half = track.half;
     let bank = track.bank_from();
     let fine = ((hash(x.floor() as i32, y.floor() as i32) & 0xff) as i32 - 128) / 24;
+    if !track.lake_spans.is_empty() && track.out_on_lake(i) {
+        // out on the frozen lake
+        for &(hx, hy, r) in &track.holes {
+            let e = (x - hx).hypot(y - hy);
+            if e < r {
+                // open water, dark, with a slow ripple
+                let ripple = ((e * 2.2 - hash(0, 0) as f32 * 0.0).sin() * 0.5 + 0.5) * 0.25;
+                return mix((16, 34, 70), (40, 76, 120), ripple);
+            }
+            if e < r + 0.8 + (hash(x as i32, y as i32) % 3) as f32 * 0.3 {
+                // the broken white rim
+                return (236, 244, 252);
+            }
+        }
+        if d <= half {
+            // the ice road: clear blue, dusted with snow in the ruts
+            let mut c = mix((126, 172, 210), (150, 194, 226), noise(x / 7.0, y / 7.0));
+            for rut in [-6.5f32, -3.5, 3.5, 6.5] {
+                if (side - rut).abs() < 0.7 {
+                    c = mix(c, (232, 240, 250), 0.6);
+                }
+            }
+            return shade(c, fine / 2);
+        }
+        return lake(th, x, y);
+    }
     if !track.inlets.is_empty() && track.in_inlet(i) {
         // the inlet: an arm of the lake's cream cutting right across, out
         // over the powder on both sides so you see it coming past the ramp
@@ -1129,5 +1155,6 @@ pub fn surface_name(s: Surface) -> &'static str {
         Surface::Bank => "bank",
         Surface::Ice => "ice",
         Surface::Cream => "cream",
+        Surface::BlackIce => "black ice",
     }
 }

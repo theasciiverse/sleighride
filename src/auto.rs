@@ -68,17 +68,18 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         return Controls { gas: r.clock >= COUNTDOWN - 1.0 + ai.start_err, ..Default::default() };
     }
     let mut offset = ai.offset;
-    for t in &r.traps {
-        // steer round dropped presents in the next stretch
-        let ti = r.track.idx(t.x, t.y);
+    let hazards = r.traps.iter().map(|t| (t.x, t.y, 4.0)).chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5)));
+    for (hx, hy, clear) in hazards {
+        // steer round dropped presents and holes in the ice ahead
+        let ti = r.track.idx(hx, hy);
         if let Some(ti) = ti {
             let ahead = (ti as isize - me.idx as isize).rem_euclid(r.track.len() as isize);
-            if ahead < 40 {
+            if ahead < 45 {
                 let (cx, cy) = r.track.pts[ti];
                 let (dx, dy) = r.track.tangent(ti);
-                let side = (t.x - cx) * -dy + (t.y - cy) * dx;
-                if (side - offset).abs() < 4.0 {
-                    offset = if side > 0.0 { side - 6.0 } else { side + 6.0 };
+                let side = (hx - cx) * -dy + (hy - cy) * dx;
+                if (side - offset).abs() < clear {
+                    offset = if side > 0.0 { side - clear - 2.0 } else { side + clear + 2.0 };
                 }
             }
         }

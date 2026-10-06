@@ -18,6 +18,8 @@ pub enum Surface {
     Ice,
     /// A creamy inlet across the road: jump it, or wade through slowly.
     Cream,
+    /// Out on the frozen lake: clear, slippery ice, road and all.
+    BlackIce,
 }
 
 /// A course's colours.
@@ -105,8 +107,13 @@ pub struct Track {
     pub inlets: Vec<(usize, usize)>,
     /// Kicker ramps on the road: (first sample, run).
     pub kicks: Vec<(usize, usize)>,
-    /// Marker poles with pennants, either side of an inlet.
+    /// Marker poles with pennants, either side of an inlet and along the
+    /// road out on the lake.
     pub poles: Vec<(f32, f32)>,
+    /// Stretches out on the frozen lake: (first sample, last sample).
+    pub lake_spans: Vec<(usize, usize)>,
+    /// Holes in the ice: centre and radius.
+    pub holes: Vec<(f32, f32, f32)>,
     /// The relief it was built from (read by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub relief: &'static Relief,
@@ -123,11 +130,16 @@ pub struct Relief {
     /// (fraction of the lap where it starts, length in samples): inlets of
     /// the lake that cross the road, a little below it.
     pub inlets: &'static [(f32, usize)],
+    /// (from, to) fractions of the lap where the course runs out on the
+    /// frozen lake: flat at the lake's level, no kerbs, open ice around.
+    pub on_lake: &'static [(f32, f32)],
+    /// Holes in the ice: (fraction of the lap, offset right, radius).
+    pub holes: &'static [(f32, f32, f32)],
     pub lake: f32,
 }
 
 #[cfg(test)]
-const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], lake: 0.0 };
+const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], lake: 0.0 };
 
 /// Eggnogg: up from the start to a high ridge in the north, a kicker off
 /// its edge down into the eggnog basin, rolling hills through the hairpins
@@ -153,7 +165,75 @@ const EGGNOGG_RELIEF: Relief = Relief {
     ],
     kickers: &[(0.2, 3.5, 26), (0.775, 4.5, 22)],
     inlets: &[(0.7765, 22)],
+    on_lake: &[],
+    holes: &[],
     lake: -20.0,
+};
+
+/// Thin Ice: round the hilly north and east shores, off the bank onto the
+/// frozen lake with a kicker, and home across the ice past holes.
+const THIN_ICE_RELIEF: Relief = Relief {
+    keys: &[
+        (0.0, 1.0),
+        (0.1, 10.0),
+        (0.18, 16.0),
+        (0.27, 8.0),
+        (0.36, 14.0),
+        (0.44, 6.0),
+        (0.52, 12.0),
+        (0.61, 6.0),
+        (0.69, 9.0),
+        (0.755, 5.0),
+        (0.775, 0.0),
+        (0.935, 0.0),
+        (0.97, 1.0),
+    ],
+    kickers: &[(0.765, 3.0, 22)],
+    inlets: &[],
+    on_lake: &[(0.775, 0.935)],
+    holes: &[
+        (0.795, -6.5, 3.5),
+        (0.815, 6.0, 4.0),
+        (0.835, 0.0, 3.0),
+        (0.852, -7.0, 4.5),
+        (0.87, 7.5, 4.0),
+        (0.888, -2.5, 3.2),
+        (0.905, 6.5, 3.8),
+        (0.92, -6.0, 3.5),
+    ],
+    lake: 0.0,
+};
+
+const THIN_ICE_PTS: &[(f32, f32)] = &[
+    (140.0, 720.0),
+    (128.0, 470.0),
+    (190.0, 270.0),
+    (360.0, 155.0),
+    (590.0, 135.0),
+    (790.0, 190.0),
+    (905.0, 360.0),
+    (890.0, 590.0),
+    (790.0, 760.0),
+    (640.0, 800.0),
+    (480.0, 720.0),
+    (330.0, 650.0),
+    (215.0, 770.0),
+];
+
+/// A bright, overcast winter morning.
+pub const MORNING: Theme = Theme {
+    road: (172, 178, 198),
+    kerb: [(44, 96, 206), (240, 244, 250)],
+    powder: [(214, 224, 240), (244, 248, 255)],
+    bank: [(186, 198, 224), (252, 252, 255)],
+    lake: [(118, 168, 204), (156, 198, 224), (226, 240, 250)],
+    flecks: false,
+    ice: (176, 226, 246),
+    sky: [(112, 150, 200), (226, 236, 246)],
+    haze: (220, 230, 242),
+    hills: [(150, 166, 200), (96, 112, 150)],
+    aurora: false,
+    birds: (44, 44, 64),
 };
 
 /// Frozen Lake: the start straight climbs a ridge along the west shore to a
@@ -179,12 +259,14 @@ const FROZEN_RELIEF: Relief = Relief {
     ],
     kickers: &[(0.125, 3.5, 26), (0.62, 3.5, 26)],
     inlets: &[],
+    on_lake: &[],
+    holes: &[],
     lake: -26.0,
 };
 
 /// The courses, in menu order.
-pub fn courses() -> [(&'static str, fn() -> Track); 2] {
-    [("Frozen Lake", Track::frozen_lake), ("Eggnogg", Track::eggnogg)]
+pub fn courses() -> [(&'static str, fn() -> Track); 3] {
+    [("Frozen Lake", Track::frozen_lake), ("Eggnogg", Track::eggnogg), ("Thin Ice", Track::thin_ice)]
 }
 
 /// Control points of the first course, Frozen Lake: start straight running
@@ -341,7 +423,7 @@ fn value_noise(x: f32, y: f32) -> f32 {
 /// drifts, then down to the lake. Off the road it is smoothed so that where
 /// two stretches of course meet at different heights the land between rolls
 /// rather than steps.
-fn ground_heights(cells: &[Cell], profile: &[f32], kick: &[f32], lake: f32, half: f32) -> Vec<f32> {
+fn ground_heights(cells: &[Cell], profile: &[f32], kick: &[f32], lake: f32, half: f32, on_lake: &[bool]) -> Vec<f32> {
     let bank = BANK_FROM.max(half + 4.0);
     let shoulder = |d: f32| (d - half - 2.5).max(0.0) * 0.1;
     let mut g = vec![lake; MAP * MAP];
@@ -353,7 +435,10 @@ fn ground_heights(cells: &[Cell], profile: &[f32], kick: &[f32], lake: f32, half
             }
             let (d, base) = (c.dist, profile[c.idx as usize]);
             let edge = base + shoulder(bank);
-            g[y * MAP + x] = if d <= half + 2.5 {
+            g[y * MAP + x] = if on_lake[c.idx as usize] {
+                // out on the ice: flat all round
+                base
+            } else if d <= half + 2.5 {
                 base + kick[c.idx as usize]
             } else if d <= bank {
                 let drift = value_noise(x as f32 / 11.0, y as f32 / 11.0) - 0.5;
@@ -404,6 +489,10 @@ impl Track {
         let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &EGGNOGG_RELIEF);
         t.add_ice(&[(0.17, 3.0, 6.0), (0.45, -4.0, 7.0), (0.58, 5.0, 6.0), (0.86, 0.0, 8.0)]);
         t
+    }
+
+    pub fn thin_ice() -> Track {
+        Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF)
     }
 
     /// Ice patches at (fraction of the lap, offset right, radius).
@@ -458,10 +547,34 @@ impl Track {
             })
             .collect();
         let (land, kick) = lie_of_land(relief, n);
-        let ground = ground_heights(&cells, &land, &kick, relief.lake, half);
+        let lake_spans: Vec<(usize, usize)> = relief.on_lake.iter().map(|&(a, b)| ((a * n as f32) as usize, (b * n as f32) as usize)).collect();
+        let out_on_lake: Vec<bool> = (0..n).map(|i| lake_spans.iter().any(|&(a, b)| (i + n - a) % n <= (b + n - a) % n)).collect();
+        let ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), relief };
+        for &(f, side, r) in relief.holes {
+            let i = (f * n as f32) as usize;
+            let (px, py) = t.pts[i];
+            let (tx, ty) = t.tangents[i];
+            t.holes.push((px - ty * side, py + tx * side, r));
+        }
+        // marker poles along the road out on the lake
+        let spans = t.lake_spans.clone();
+        for (a, b) in spans {
+            let mut i = a;
+            while (i + n - a) % n <= (b + n - a) % n {
+                let (px, py) = t.pts[i % n];
+                let (tx, ty) = t.tangents[i % n];
+                for side in [-(half + 3.0), half + 3.0] {
+                    t.poles.push((px - ty * side, py + tx * side));
+                }
+                i = (i + 45) % n;
+                if i < a && b > a {
+                    break;
+                }
+            }
+        }
         let inlets: Vec<(usize, usize)> = t.inlets.clone();
         for (s0, len) in inlets {
             for i in [(s0 + n - 3) % n, (s0 + len + 2) % n] {
@@ -483,7 +596,8 @@ impl Track {
                 let x = (gx * grid) as f32 + (h >> 8 & 0xff) as f32 / 255.0 * grid as f32;
                 let y = (gy * grid) as f32 + (h >> 16 & 0xff) as f32 / 255.0 * grid as f32;
                 let d = t.dist(x, y);
-                if d > half + 9.0 && d < BANK_FROM - 3.0 {
+                let on_ice = t.idx(x, y).is_some_and(|i| t.out_on_lake(i));
+                if d > half + 9.0 && d < BANK_FROM - 3.0 && !on_ice {
                     t.trees.push(Tree { x, y, size: 0.8 + (h >> 24) as f32 / 255.0 * 0.5 });
                 }
             }
@@ -543,6 +657,17 @@ impl Track {
         })
     }
 
+    /// Whether sample `i` is out on the frozen lake.
+    pub fn out_on_lake(&self, i: usize) -> bool {
+        let n = self.len();
+        self.lake_spans.iter().any(|&(a, b)| (i + n - a) % n <= (b + n - a) % n)
+    }
+
+    /// Whether a point is in a hole in the ice.
+    pub fn in_hole(&self, x: f32, y: f32) -> bool {
+        self.holes.iter().any(|&(hx, hy, r)| (x - hx).abs() < r && (y - hy).abs() < r && (x - hx).hypot(y - hy) < r)
+    }
+
     /// Whether sample `i` is where an inlet crosses the road.
     pub fn in_inlet(&self, i: usize) -> bool {
         let n = self.len();
@@ -553,6 +678,8 @@ impl Track {
         let d = self.dist(x, y);
         if d <= BANK_FROM && !self.inlets.is_empty() && self.idx(x, y).is_some_and(|i| self.in_inlet(i)) {
             Surface::Cream
+        } else if d <= BANK_FROM && !self.lake_spans.is_empty() && self.idx(x, y).is_some_and(|i| self.out_on_lake(i)) {
+            Surface::BlackIce
         } else if d <= self.half {
             if self.on_ice(x, y) {
                 Surface::Ice
@@ -622,7 +749,7 @@ mod tests {
         for (name, make) in courses() {
         let t = make();
         for (i, &(x, y)) in t.pts.iter().enumerate() {
-            assert!(matches!(t.surface(x, y), Surface::Road | Surface::Ice | Surface::Cream), "{name} sample {i}");
+            assert!(matches!(t.surface(x, y), Surface::Road | Surface::Ice | Surface::Cream | Surface::BlackIce), "{name} sample {i}");
             // the course never runs close to itself (nearest sample is local)
             let near = t.idx(x, y).unwrap();
             let gap = (near as isize - i as isize).rem_euclid(t.len() as isize).min((i as isize - near as isize).rem_euclid(t.len() as isize));
@@ -640,7 +767,7 @@ mod tests {
         let profile = road_profile(t.relief, n);
         let lips: Vec<usize> = t.relief.kickers.iter().map(|k| (k.0 * n as f32) as usize).collect();
         let (lo, hi) = profile.iter().fold((f32::MAX, f32::MIN), |(a, b), &h| (a.min(h), b.max(h)));
-        assert!(hi - lo > 20.0, "{name} hills: {lo}..{hi}");
+        assert!(hi - lo > 15.0, "{name} hills: {lo}..{hi}");
         for i in 0..n {
             let step = profile[(i + 1) % n] - profile[i];
             let at_lip = lips.iter().any(|&l| (i + 1) % n == l || i == l);
@@ -659,6 +786,31 @@ mod tests {
             assert!(profile[l - 1] - profile[l] > 2.5, "{name}: a drop at the lip {l}");
         }
         }
+    }
+
+    #[test]
+    fn thin_ice_runs_out_on_the_lake_with_holes_that_leave_a_way_through() {
+        let t = Track::thin_ice();
+        let n = t.len();
+        let (a, b) = t.lake_spans[0];
+        let mid = (a + b) / 2;
+        let (x, y) = t.pts[mid];
+        assert_eq!(t.surface(x, y), Surface::BlackIce);
+        assert!((t.height(x, y) - t.lake).abs() < 0.5, "flat at the lake's level");
+        assert_eq!(t.holes.len(), 8);
+        // at every sample on the lake some lane across the road is clear
+        for i in a..=b {
+            let (px, py) = t.pts[i % n];
+            let (tx, ty) = t.tangents[i % n];
+            let clear = (-10..=10).any(|k| {
+                let side = k as f32;
+                let (qx, qy) = (px - ty * side, py + tx * side);
+                (-2..=2).all(|w| !t.in_hole(qx - ty * w as f32, qy + tx * w as f32))
+            });
+            assert!(clear, "a way through at {i}");
+        }
+        // no trees out on the ice
+        assert!(t.trees.iter().all(|tr| !t.idx(tr.x, tr.y).is_some_and(|i| t.out_on_lake(i))));
     }
 
     #[test]
