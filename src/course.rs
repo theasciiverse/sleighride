@@ -14,7 +14,7 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 
 /// The courses, in the order the game numbers them.
-const FILES: [&str; 7] = [
+const FILES: [&str; 8] = [
     include_str!("../courses/1-frozen-lake.toml"),
     include_str!("../courses/2-eggnogg.toml"),
     include_str!("../courses/3-thin-ice.toml"),
@@ -22,6 +22,7 @@ const FILES: [&str; 7] = [
     include_str!("../courses/5-gingerbread-village.toml"),
     include_str!("../courses/6-the-workshop.toml"),
     include_str!("../courses/7-the-glacier.toml"),
+    include_str!("../courses/8-the-birch-wood.toml"),
 ];
 
 #[derive(Deserialize, Default, Debug)]
@@ -52,6 +53,8 @@ pub struct CourseFile {
     pub penguins: Option<f64>,
     pub yule_cat: Option<f64>,
     pub yule_lads: bool,
+    pub ded_moroz: Option<f64>,
+    pub snegurochka: Option<f64>,
     pub stands: Vec<f64>,
 }
 
@@ -123,6 +126,8 @@ impl Course {
         t.penguins = f.penguins.map(x);
         t.yule_cat = f.yule_cat.map(x);
         t.yule_lads = f.yule_lads;
+        t.ded_moroz = f.ded_moroz.map(x);
+        t.snegurochka = f.snegurochka.map(x);
         if !f.stands.is_empty() {
             t.stands = f.stands.iter().map(|&s| x(s)).collect();
             // clear the props out of the stands

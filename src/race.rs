@@ -184,6 +184,10 @@ pub enum Note {
     Yowl,
     /// A Yule Lad snatched this racer's item.
     Stolen(usize),
+    /// Ded Moroz struck his staff: frost spreads over the road.
+    Frost,
+    /// Snegurochka gave racer a present.
+    Gift(usize),
     /// Someone in the stands threw a present, from (x, y).
     Thrown(f32, f32),
     Finished(usize),
@@ -464,8 +468,30 @@ impl Race {
                         self.racers[i].ammo = 0;
                         self.notes.push(Note::Stolen(i));
                     }
+                    _ => {}
                 }
             }
+        }
+        if self.folklore.moroz.is_some() || self.folklore.maiden.is_some() {
+            // the back half of the field, empty-handed
+            let n = self.racers.len() as u8;
+            let wanting: Vec<bool> = self.racers.iter().map(|r| r.item.is_none() && r.place > n / 2 && r.finished.is_none()).collect();
+            let karts: Vec<&Kart> = self.racers.iter().map(|r| &r.kart).collect();
+            for e in self.folklore.step_frost_and_gifts(DT, &karts, &wanting) {
+                match e {
+                    crate::folklore::Folk::Frost => self.notes.push(Note::Frost),
+                    crate::folklore::Folk::Gift(i) => {
+                        let item = self.roll_item(self.racers[i].place);
+                        let r = &mut self.racers[i];
+                        r.item = Some(item);
+                        r.ammo = if item == Item::Snowball { 3 } else { 1 };
+                        r.roulette = ROULETTE;
+                        self.notes.push(Note::Gift(i));
+                    }
+                    _ => {}
+                }
+            }
+            self.track.frost = self.folklore.frost();
         }
         if !self.crowd.fans.is_empty() && self.clock > COUNTDOWN {
             let karts: Vec<&Kart> = self.racers.iter().map(|r| &r.kart).collect();
@@ -940,6 +966,7 @@ impl Race {
         self.weather = s.weather;
         self.wildlife = s.wildlife;
         self.folklore = s.folklore;
+        self.track.frost = self.folklore.frost();
         self.crowd = s.crowd;
         self.notes = s.notes;
         self.order = s.order;

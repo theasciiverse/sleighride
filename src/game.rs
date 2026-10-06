@@ -579,6 +579,11 @@ impl Game {
                 Note::Pounced(i) => (Sfx::Hit, if i == me { None } else { Some(pos(i)) }),
                 Note::Stolen(i) => (Sfx::Giggle, if i == me { None } else { Some(pos(i)) }),
                 Note::Thrown(x, y) => (Sfx::Lob, Some((x, y))),
+                Note::Frost => match self.race.folklore.moroz {
+                    Some(m) => (Sfx::Chime, Some((m.x, m.y))),
+                    None => continue,
+                },
+                Note::Gift(i) => (Sfx::Ding, if i == me { None } else { Some(pos(i)) }),
                 Note::Yowl => match self.race.folklore.cat {
                     Some(c) => (Sfx::Yowl, Some((c.x, c.y))),
                     None => continue,
@@ -596,6 +601,7 @@ impl Game {
                 Note::Swipe(i) if i == me && playing => self.flash = Some(("SWIPED!".into(), 1.2, (240, 236, 222))),
                 Note::Pounced(i) if i == me && playing => self.flash = Some(("YULE CAT!".into(), 1.2, (255, 220, 60))),
                 Note::Stolen(i) if i == me && playing => self.flash = Some(("YULE LAD|STOLE YOUR ITEM!".into(), 1.6, (196, 170, 120))),
+                Note::Gift(i) if i == me && playing => self.flash = Some(("A GIFT FROM|SNEGUROCHKA!".into(), 1.6, (190, 226, 255))),
                 Note::SantaComing if playing => {
                     let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
                     self.flash = Some((text.into(), 2.0, SANTA_COLOUR));
@@ -1365,12 +1371,13 @@ mod tests {
         assert!(text.contains("The one to learn on"), "{text}");
         input.cmds.extend([Cmd::Left]);
         g.tick(&mut input);
-        assert_eq!(courses()[g.course].0, "The Glacier", "round to the last");
-        assert!(screen_text(&g, &input).contains("7 of 7"));
+        let (n, last) = (courses().len(), courses().last().unwrap().0);
+        assert_eq!(courses()[g.course].0, last, "round to the last");
+        assert!(screen_text(&g, &input).contains(&format!("{n} of {n}")));
         input.cmds.push(Cmd::Confirm);
         g.tick(&mut input);
         assert_eq!(g.phase, Phase::Race);
-        assert_eq!(g.race.track.name, "The Glacier");
+        assert_eq!(g.race.track.name, last);
         assert_eq!(ROSTER[g.pick].name, "Sprocket", "still the racer chosen");
         let p = g.race.player().unwrap();
         assert_eq!(ROSTER[g.race.racers[p].who].name, "Sprocket");

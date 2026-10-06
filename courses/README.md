@@ -15,7 +15,7 @@ out is simply not on the course.
 |---|---|
 | `name` | The course's name |
 | `look`, `about` | The course page's two lines: what it looks like, what's on it |
-| `theme` | Colours: `frozen`, `eggnogg`, `morning`, `candy`, `ginger`, `workshop` or `glacier` (themes live in `src/track.rs`) |
+| `theme` | Colours: `frozen`, `eggnogg`, `morning`, `candy`, `ginger`, `workshop`, `glacier` or `birch` (themes live in `src/track.rs`) |
 | `half` | Half the road's width (14 is usual) |
 | `lake` | Height of the lake, or the floor beyond the banks |
 | `walls` | `true` for tall walls instead of slopes down to a lake (indoors) |
@@ -34,4 +34,6 @@ out is simply not on the course.
 | `penguins` | Fraction where penguins cross (a polar bear lives there too) |
 | `yule_cat` | Fraction where the Yule Cat sits |
 | `yule_lads` | `true` for Yule Lads by the present boxes |
+| `ded_moroz` | Fraction where Ded Moroz stands; every so often he lays frost (ice) across the road just past him |
+| `snegurochka` | Fraction where Snegurochka stands; she gives a present to back markers passing empty-handed |
 | `stands` | Spectator stands, as fractions |

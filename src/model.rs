@@ -724,6 +724,59 @@ impl Model {
         Model::finish(g, 6.0, 1.0, [[0.0, 0.0, 0.0]; 2])
     }
 
+    /// Ded Moroz: a long blue coat trimmed with white fur, a long white
+    /// beard, a fur hat, and his staff with an ice crystal on top, held at
+    /// his side or raised high (`up`).
+    pub fn ded_moroz(up: bool) -> Model {
+        let mut g = Grid::new();
+        const COAT: Rgb = (44, 84, 178);
+        const CRYSTAL: Rgb = (200, 240, 255);
+        g.blob((6.0, 0.0, 7.5), (3.2, 3.2, 8.0), COAT);
+        g.blob((6.0, 0.0, 0.8), (3.4, 3.4, 0.9), WHITE);
+        g.line((9.0, 0.0, 0.0), (9.0, 0.0, 14.0), WHITE);
+        g.blob((6.0, 0.0, 14.5), (3.4, 3.6, 1.0), WHITE);
+        g.ball((6.5, 0.0, 17.5), 2.3, SKIN);
+        g.blob((8.3, 0.0, 14.8), (1.4, 2.2, 3.8), WHITE);
+        g.set(9, -1, 18, BLACK);
+        g.set(9, 1, 18, BLACK);
+        g.blob((6.2, 0.0, 20.6), (2.6, 2.6, 1.8), COAT);
+        g.blob((6.2, 0.0, 19.4), (2.9, 2.9, 0.8), WHITE);
+        let (hand, top) = if up { ((8.0, 4.0, 15.0), (9.0, 4.5, 31.0)) } else { ((8.0, 4.0, 9.0), (9.0, 4.0, 24.0)) };
+        g.line((6.5, 3.0, 13.0), hand, COAT);
+        g.line((top.0 - 1.0, top.1, 0.5_f32.max(top.2 - 24.0)), top, (150, 110, 70));
+        g.ball((top.0, top.1, top.2 + 1.2), 1.4, CRYSTAL);
+        Model::finish(g, 6.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
+    /// Snegurochka: a pale blue coat trimmed with white, a silver
+    /// kokoshnik, a long golden braid; holding out a present when `giving`.
+    pub fn snegurochka(giving: bool) -> Model {
+        let mut g = Grid::new();
+        const COAT: Rgb = (150, 200, 240);
+        const SILVER: Rgb = (222, 232, 248);
+        const HAIR: Rgb = (232, 196, 110);
+        g.blob((6.0, 0.0, 6.5), (2.5, 2.5, 7.0), COAT);
+        g.blob((6.0, 0.0, 0.7), (2.7, 2.7, 0.8), WHITE);
+        g.line((8.4, 0.0, 0.0), (8.4, 0.0, 12.0), WHITE);
+        g.ball((6.5, 0.0, 15.0), 2.0, SKIN);
+        g.set(8, -1, 15, BLACK);
+        g.set(8, 1, 15, BLACK);
+        for y in -3..=3 {
+            let h = 18 + (2 - (y as i32).abs()).max(0);
+            g.block((5, 7), (y, y), (16, h), SILVER);
+        }
+        g.line((4.2, 0.0, 15.0), (4.0, 0.0, 5.0), HAIR);
+        g.line((4.5, 0.6, 15.0), (4.3, 0.6, 6.0), HAIR);
+        if giving {
+            g.line((6.5, 2.4, 11.0), (11.0, 2.4, 11.5), COAT);
+            g.block((11, 13), (1, 3), (11, 13), RED);
+            g.set(12, 2, 14, GOLD);
+        } else {
+            g.line((6.5, 2.4, 11.0), (7.5, 2.4, 6.0), COAT);
+        }
+        Model::finish(g, 6.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
     /// A wrapped present: a box with a ribbon cross and a bow on top.
     pub fn gift(paper: Rgb, ribbon: Rgb) -> Model {
         let mut g = Grid::new();

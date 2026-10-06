@@ -1,0 +1,51 @@
+name = "The Birch Wood"
+look = "Pink winter dusk in a birch wood"
+about = "Ded Moroz lays frost on the road. Snegurochka helps the back markers."
+theme = "birch"
+half = 14.0
+lake = -20.0
+# Grandfather Frost and the Snow Maiden, as fractions of the lap
+ded_moroz = 0.36
+snegurochka = 0.7
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [150.0, 850.0],
+    [130.0, 600.0],
+    [210.0, 430.0],
+    [140.0, 260.0],
+    [270.0, 120.0],
+    [480.0, 170.0],
+    [560.0, 330.0],
+    [700.0, 250.0],
+    [880.0, 160.0],
+    [920.0, 380.0],
+    [800.0, 520.0],
+    [880.0, 700.0],
+    [820.0, 880.0],
+    [600.0, 900.0],
+    [440.0, 790.0],
+    [300.0, 900.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.05, 0.0],
+    [0.14, 10.0],
+    [0.22, 4.0],
+    [0.3, 14.0],
+    [0.4, 18.0],
+    [0.47, 8.0],
+    [0.55, 12.0],
+    [0.62, 4.0],
+    [0.72, 6.0],
+    [0.8, 16.0],
+    [0.9, 4.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.42, 3.5, 24], [0.82, 3.5, 24]]
+
+# ice patches: [fraction of the lap, offset right, radius]
+ice = [[0.2, -4.0, 6.0], [0.58, 4.0, 7.0]]

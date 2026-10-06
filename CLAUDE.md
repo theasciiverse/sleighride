@@ -75,9 +75,9 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (seven; `track::courses()`): **Thin Ice**, **Candy Cane
-  Forest**, **Gingerbread Village**, **The Workshop** and **The Glacier**
-  (see Next steps),
+- Courses (eight; `track::courses()`, one file each in `courses/`):
+  **Thin Ice**, **Candy Cane Forest**, **Gingerbread Village**, **The
+  Workshop**, **The Glacier** and **The Birch Wood** (see Next steps),
   **Frozen Lake** (aurora night, ice cracks, two ice patches; hills and two
   kickers, see below; the learner course, so no weather or wildlife since
   2026-10-06, David: "we have overloaded the first track") and
@@ -371,6 +371,18 @@ David wants all of these (2026-10-06), roughly in this order:
         speed again. From up the road the chasm hides behind the kicker
         (the road falls away), so the poles and the ramp's chevrons are the
         warning. Every rival finishes; balance holds across all seven
+      - [x] **The Birch Wood** (2026-10-06): a pink and gold winter dusk
+        (`BIRCH` theme) among clumps of bare birches (`Theme::birches`:
+        white trunks, black marks, fine twigs), red-and-gold troika-road
+        kerbs, hills and two kickers. **Ded Moroz** (Grandfather Frost)
+        stands by the road in his long blue coat; every 22 s he raises his
+        staff (the crystal flashes, 1.2 s warning) and strikes: frost
+        spreads over the road just past him into an ice patch (radius 10)
+        that holds 7 s and melts in 2 (`Track::frost`, synced from the
+        race's folklore so network guests skate on it too). **Snegurochka**
+        (the Snow Maiden) further on hands a present to anyone in the back
+        half of the field who passes empty-handed ("A GIFT FROM
+        SNEGUROCHKA!"), once per racer every 25 s: the Yule Lads' opposite
       More course ideas welcome
 - [x] Weather (2026-10-06, `weather.rs`): blizzards on Thin Ice (Frozen
       Lake had them too until it became the learner course): a 22 s calm at the start, then building 6 s, blowing
@@ -433,8 +445,8 @@ David wants all of these (2026-10-06), roughly in this order:
       STOLE YOUR ITEM!"), hiding 14 s. Rivals keep clear of a pouncing
       cat, and of the lads while holding an item.
       **Ruled out by David (2026-10-06): Krampus, and Tio de Nadal (the
-      Catalan log).** Other folklore ideas still open: Ded Moroz and
-      Snegurochka, Mari Lwyd
+      Catalan log).** Ded Moroz and Snegurochka are on the Birch
+      Wood (2026-10-06). Still open: Mari Lwyd
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
 - [x] A course selection page (2026-10-06, David: "once we have a few

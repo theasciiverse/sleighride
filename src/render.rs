@@ -577,6 +577,42 @@ fn cane(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog
     }
 }
 
+/// A clump of bare winter birches: white trunks with black marks, fine
+/// dark twigs at the top.
+#[allow(clippy::too_many_arguments)]
+fn birch(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb) {
+    let h = TREE_H * size * scale * 1.15;
+    if h < 1.5 {
+        return;
+    }
+    let f = |c: Rgb| mix(c, haze, fog);
+    let trunks = 2 + (seed.sin().abs() * 2.0) as i32;
+    for k in 0..trunks {
+        let off = (k as f32 - (trunks - 1) as f32 / 2.0) * h * 0.14 + (seed * (k as f32 + 1.0)).sin() * h * 0.03;
+        let tall = h * (0.75 + 0.25 * ((seed + k as f32 * 1.7).cos().abs()));
+        let lean = (seed * 2.0 + k as f32).sin() * 0.08;
+        let w = (h * 0.035).max(0.6);
+        let top = sy - tall;
+        for y in top as i32..sy as i32 {
+            let fy = (sy - y as f32) / tall;
+            let cx = sx + off + lean * (sy - y as f32);
+            let mark = ((y as f32 * 0.9 + seed * 7.0 + k as f32 * 3.0).sin() > 0.82) as i32;
+            for x in (cx - w) as i32..=(cx + w) as i32 {
+                let c = if mark == 1 && (x as f32) < cx { (40, 34, 40) } else if (x as f32) > cx { (206, 204, 214) } else { (244, 242, 246) };
+                cv.put(x, y, f(c));
+            }
+            // fine twigs toward the top
+            if fy > 0.55 && (y + k) % 3 == 0 {
+                let reach = (h * 0.12 * (fy - 0.4)) as i32;
+                let dir = if (y / 3 + k) % 2 == 0 { 1 } else { -1 };
+                for q in 1..=reach {
+                    cv.put(cx as i32 + dir * q, y - q / 2, f((70, 56, 64)));
+                }
+            }
+        }
+    }
+}
+
 /// A serac: a jagged spire of glacier ice, lit on one side.
 #[allow(clippy::too_many_arguments)]
 fn serac(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb) {
@@ -782,11 +818,13 @@ struct Critters {
     lad: Model,
     /// Spectators: four looks, arms down and up.
     fans: [[Model; 2]; 4],
+    moroz: [Model; 2],
+    maiden: [Model; 2],
 }
 
 fn critters() -> &'static Critters {
     static C: OnceLock<Critters> = OnceLock::new();
-    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true), cat: std::array::from_fn(Model::yule_cat), lad: Model::yule_lad(), fans: std::array::from_fn(|l| [Model::fan(l as u8, false), Model::fan(l as u8, true)]) })
+    C.get_or_init(|| Critters { penguin: Model::penguin(), bear: std::array::from_fn(|f| Model::bear(f, false)), bear_reared: Model::bear(0, true), cat: std::array::from_fn(Model::yule_cat), lad: Model::yule_lad(), fans: std::array::from_fn(|l| [Model::fan(l as u8, false), Model::fan(l as u8, true)]), moroz: [Model::ded_moroz(false), Model::ded_moroz(true)], maiden: [Model::snegurochka(false), Model::snegurochka(true)] })
 }
 
 fn gift() -> &'static Model {
@@ -1091,6 +1129,8 @@ enum Thing {
     Lad(usize),
     Cottage(usize),
     Fan(usize),
+    Moroz,
+    Maiden,
 }
 
 thread_local! {
@@ -1174,6 +1214,12 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for (i, &(cx, cy, _, _)) in r.track.cottages.iter().enumerate() {
         things.push((depth(cx, cy), cx, cy, Thing::Cottage(i)));
     }
+    if let Some(m) = &r.folklore.moroz {
+        things.push((depth(m.x, m.y), m.x, m.y, Thing::Moroz));
+    }
+    if let Some(g) = &r.folklore.maiden {
+        things.push((depth(g.x, g.y), g.x, g.y, Thing::Maiden));
+    }
     for (i, f) in r.crowd.fans.iter().enumerate() {
         things.push((depth(f.x, f.y), f.x, f.y, Thing::Fan(i)));
     }
@@ -1205,6 +1251,8 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 if sx + w > 0.0 && sx - w < v.w {
                     if th.indoors {
                         toy(cv, sx, sy, scale, size, x + y * 3.0, fog, haze);
+                    } else if th.birches {
+                        birch(cv, sx, sy, scale, size, x * 0.53 + y * 0.31, fog, haze);
                     } else if th.seracs {
                         serac(cv, sx, sy, scale, size, x * 0.37 + y, fog, haze);
                     } else if th.canes {
@@ -1344,6 +1392,27 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                         _ => pose.sy -= ((s.time * 14.0).sin().abs()) * pose.px * 2.0,
                     }
                     critters().lad.draw(cv, &pose);
+                }
+            }
+            Thing::Moroz => {
+                let m = r.folklore.moroz.unwrap();
+                if let Some((pose, scale)) = pose_at(&v, &s.cam, x, y, ground, m.heading, 2.6, haze) {
+                    shadow(cv, pose.sx, pose.sy, scale, 3.0);
+                    critters().moroz[m.raised() as usize].draw(cv, &pose);
+                    if m.raised() {
+                        // the crystal flashes before he strikes
+                        let (cx, cy) = critters().moroz[1].point([9.0, 4.5, 32.2], &pose);
+                        if (s.time * 10.0) as i32 % 2 == 0 {
+                            ball(cv, cx, cy, (pose.px * 3.0).max(1.5), (240, 252, 255), (150, 220, 255));
+                        }
+                    }
+                }
+            }
+            Thing::Maiden => {
+                let g = r.folklore.maiden.as_ref().unwrap();
+                if let Some((pose, scale)) = pose_at(&v, &s.cam, x, y, ground, g.heading, 2.4, haze) {
+                    shadow(cv, pose.sx, pose.sy, scale, 2.5);
+                    critters().maiden[(g.gave < 1.2) as usize].draw(cv, &pose);
                 }
             }
             Thing::Fan(i) => {

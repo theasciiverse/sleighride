@@ -39,6 +39,7 @@ pub fn theme_named(name: &str) -> Option<Theme> {
         "ginger" => GINGER,
         "workshop" => WORKSHOP,
         "glacier" => GLACIER,
+        "birch" => BIRCH,
         _ => return None,
     })
 }
@@ -71,6 +72,8 @@ pub struct Theme {
     pub indoors: bool,
     /// Seracs (jagged spires of blue glacier ice) instead of pines.
     pub seracs: bool,
+    /// Bare winter birches instead of pines.
+    pub birches: bool,
 }
 
 pub const FROZEN: Theme = Theme {
@@ -90,6 +93,7 @@ pub const FROZEN: Theme = Theme {
     houses: false,
     indoors: false,
     seracs: false,
+    birches: false,
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -110,6 +114,7 @@ pub const EGGNOGG: Theme = Theme {
     houses: false,
     indoors: false,
     seracs: false,
+    birches: false,
 };
 
 #[derive(Clone, Copy)]
@@ -168,6 +173,11 @@ pub struct Track {
     /// Where the Yule Cat sits, and whether Yule Lads lurk by the boxes.
     pub yule_cat: Option<f32>,
     pub yule_lads: bool,
+    /// Where Ded Moroz stands, and Snegurochka, as fractions of the lap.
+    pub ded_moroz: Option<f32>,
+    pub snegurochka: Option<f32>,
+    /// Ice Ded Moroz has laid on the road just now: centre and radius.
+    pub frost: Option<(f32, f32, f32)>,
     /// The relief it was built from (read by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub relief: &'static Relief,
@@ -228,6 +238,7 @@ pub const CANDY: Theme = Theme {
     houses: false,
     indoors: false,
     seracs: false,
+    birches: false,
 };
 
 /// Gingerbread Village: an amber evening, icing kerbs, a frozen syrup pond.
@@ -248,6 +259,7 @@ pub const GINGER: Theme = Theme {
     houses: true,
     indoors: false,
     seracs: false,
+    birches: false,
 };
 
 /// Santa's workshop, indoors: polished floorboards, painted kerbs, wood
@@ -269,6 +281,7 @@ pub const WORKSHOP: Theme = Theme {
     houses: false,
     indoors: true,
     seracs: false,
+    birches: false,
 };
 
 /// The Glacier: night under the northern lights, packed snow on blue
@@ -290,9 +303,32 @@ pub const GLACIER: Theme = Theme {
     houses: false,
     indoors: false,
     seracs: true,
+    birches: false,
 };
 
 /// A bright, overcast winter morning.
+/// The Birch Wood: a pink and gold winter dusk among bare birches, on a
+/// troika road with red-and-gold kerbs.
+pub const BIRCH: Theme = Theme {
+    road: (190, 176, 186),
+    kerb: [(190, 34, 44), (236, 190, 70)],
+    powder: [(236, 222, 236), (250, 242, 248)],
+    bank: [(214, 196, 220), (252, 246, 250)],
+    lake: [(150, 160, 200), (186, 192, 224), (236, 236, 250)],
+    flecks: false,
+    ice: (196, 226, 248),
+    sky: [(70, 60, 120), (250, 190, 150)],
+    haze: (236, 206, 210),
+    hills: [(170, 150, 190), (120, 104, 150)],
+    aurora: false,
+    birds: (60, 50, 70),
+    canes: false,
+    houses: false,
+    indoors: false,
+    seracs: false,
+    birches: true,
+};
+
 pub const MORNING: Theme = Theme {
     road: (172, 178, 198),
     kerb: [(44, 96, 206), (240, 244, 250)],
@@ -310,6 +346,7 @@ pub const MORNING: Theme = Theme {
     houses: false,
     indoors: false,
     seracs: false,
+    birches: false,
 };
 
 /// The courses in order, by name, each with a way to build its track
@@ -498,6 +535,11 @@ impl Track {
     }
 
     #[cfg(test)]
+    pub fn birch_wood() -> Track {
+        crate::course::named("The Birch Wood").build()
+    }
+
+    #[cfg(test)]
     pub fn glacier() -> Track {
         crate::course::named("The Glacier").build()
     }
@@ -518,6 +560,11 @@ impl Track {
     }
 
     pub fn on_ice(&self, x: f32, y: f32) -> bool {
+        if let Some((fx, fy, r)) = self.frost {
+            if (x - fx).hypot(y - fy) < r {
+                return true;
+            }
+        }
         self.ice.iter().any(|&(ix, iy, r)| (x - ix).abs() < r && (y - iy).abs() < r && (x - ix).hypot(y - iy) < r)
     }
 
@@ -589,7 +636,7 @@ impl Track {
         }
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), belts: relief.belts.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), stands: Vec::new(), crevasses: relief.crevasses.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), belts: relief.belts.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), stands: Vec::new(), crevasses: relief.crevasses.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, ded_moroz: None, snegurochka: None, frost: None, relief };
         for &(f, size) in relief.cottages {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];
