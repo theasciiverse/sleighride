@@ -297,7 +297,7 @@ David wants all of these (2026-10-06), roughly in this order:
 - [x] Birds (2026-10-06, `birds.rs`, scenery only): crows on pines by
       the road flap off, climbing and veering away, when a racer comes
       within 24 units, and are back on their perch 22 s later; every 30 s
-      a flock of eleven drifts across the sky ahead in a loose V for 16 s.
+      a flock of eleven drifts across the sky ahead in a loose, well spread V for 16 s (spaced out 2026-10-06, David found it too tight).
       The flock flies in the camera's frame (far, high birds seem to keep
       pace), pale against Frozen Lake's night, dark against Eggnogg's
       sunset (`Theme::birds`)
