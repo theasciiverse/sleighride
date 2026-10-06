@@ -1,0 +1,48 @@
+name = "The Glacier"
+look = "A glacier under the northern lights"
+about = "A long climb, then down over two crevasses. Hit them fast."
+theme = "glacier"
+half = 14.0
+lake = -20.0
+blizzards = true
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [160.0, 820.0],
+    [140.0, 560.0],
+    [190.0, 320.0],
+    [330.0, 180.0],
+    [560.0, 140.0],
+    [780.0, 180.0],
+    [890.0, 340.0],
+    [880.0, 560.0],
+    [760.0, 660.0],
+    [600.0, 620.0],
+    [470.0, 700.0],
+    [500.0, 860.0],
+    [380.0, 920.0],
+    [230.0, 920.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.06, 0.0],
+    [0.2, 14.0],
+    [0.32, 30.0],
+    [0.44, 32.0],
+    [0.52, 24.0],
+    [0.62, 16.0],
+    [0.7, 14.0],
+    [0.8, 6.0],
+    [0.93, 0.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.55, 3.5, 24], [0.75, 3.5, 24]]
+
+# crevasses across the road: [fraction of the lap, length]
+crevasses = [[0.5505, 16], [0.7505, 16]]
+
+# ice patches: [fraction of the lap, offset right, radius]
+ice = [[0.24, 4.0, 7.0], [0.4, -5.0, 6.0], [0.66, 0.0, 8.0], [0.86, 5.0, 6.0]]

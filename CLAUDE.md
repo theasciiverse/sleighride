@@ -175,6 +175,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 | File | What |
 |---|---|
 | `src/track.rs` | Track: closed Catmull-Rom centreline resampled every unit, a 1024x1024 lookup map (distance to centreline, nearest sample), surfaces, pines |
+| `src/course.rs`, `courses/*.toml` | Courses as data: one TOML file per course (name, page lines, theme, points, hills, kickers, hazards, extras), parsed and checked once |
 | `src/kart.rs` | Handling, drift tiers, start judging, collisions, being hit |
 | `src/race.rs` | Six racers, countdown, laps by quarters in order, places, bumps, boxes, items, shots, traps, kisses, Santa |
 | `src/auto.rs` | Rival AI (lines, drifts, items), Santa's hunting, attract mode |
@@ -313,8 +314,15 @@ David wants all of these (2026-10-06), roughly in this order:
       accelerators); the snowmobile and toboggan got a little more turn,
       the snowmobile more accel and grip, so every ride still averages
       3rd to 4th on both courses
-- [ ] Many more courses (and a track format instead of control points in
-      code). Done so far:
+- [ ] Many more courses. The track format is done (2026-10-06): each
+      course is a TOML file in `courses/` (`courses/README.md` lists every
+      key), built into the binary and loaded by `course.rs`; themes stay in
+      code, named from the file; the course page's two lines live in the
+      file too. Unknown keys or themes are errors, and the usual tests
+      (road clear of itself, every rival finishes, balance) run over every
+      file. The seven files were generated from the old code and checked
+      identical (points, heights, trees, ice, holes, poles, everything)
+      before the code copies went. Courses so far:
       - [x] **Thin Ice** (2026-10-06, David's idea): a bright overcast
         morning (`MORNING` theme); round the hilly north and east shores
         with blue-and-white kerbs, off the bank onto the frozen lake with a
@@ -363,8 +371,7 @@ David wants all of these (2026-10-06), roughly in this order:
         speed again. From up the road the chasm hides behind the kicker
         (the road falls away), so the poles and the ramp's chevrons are the
         warning. Every rival finishes; balance holds across all seven
-      More course ideas welcome; a track format instead of control points
-      in code is still open
+      More course ideas welcome
 - [x] Weather (2026-10-06, `weather.rs`): blizzards on Thin Ice (Frozen
       Lake had them too until it became the learner course): a 22 s calm at the start, then building 6 s, blowing
       16-26 s, easing 6 s, calm 40-70 s, repeat. While it blows: sight

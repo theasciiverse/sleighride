@@ -1,6 +1,7 @@
 mod audio;
 mod auto;
 mod birds;
+mod course;
 mod crowd;
 mod folklore;
 mod game;

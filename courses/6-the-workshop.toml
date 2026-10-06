@@ -1,0 +1,47 @@
+name = "The Workshop"
+look = "Indoors, in Santa's workshop"
+about = "Conveyor belts, a mezzanine jump, and the crowd throws presents."
+theme = "workshop"
+half = 14.0
+lake = 0.0
+walls = true
+yule_lads = true
+# stands of spectators, as fractions of the lap
+stands = [0.18, 0.31, 0.63, 0.77, 0.95]
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [180.0, 820.0],
+    [160.0, 560.0],
+    [170.0, 300.0],
+    [300.0, 170.0],
+    [520.0, 170.0],
+    [560.0, 330.0],
+    [440.0, 450.0],
+    [560.0, 580.0],
+    [760.0, 520.0],
+    [800.0, 300.0],
+    [900.0, 200.0],
+    [910.0, 560.0],
+    [860.0, 830.0],
+    [620.0, 860.0],
+    [400.0, 780.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.26, 0.0],
+    [0.33, 16.0],
+    [0.42, 16.0],
+    [0.47, 0.0],
+    [0.7, 0.0],
+    [0.76, 3.0],
+    [0.82, 0.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.42, 3.0, 22]]
+
+# conveyor belts: [fraction of the lap, length]
+belts = [[0.08, 150], [0.52, 180], [0.86, 160]]

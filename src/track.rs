@@ -29,6 +29,20 @@ pub enum Surface {
     Conveyor,
 }
 
+/// A theme by the name course files use for it.
+pub fn theme_named(name: &str) -> Option<Theme> {
+    Some(match name.to_lowercase().as_str() {
+        "frozen" => FROZEN,
+        "eggnogg" => EGGNOGG,
+        "morning" => MORNING,
+        "candy" => CANDY,
+        "ginger" => GINGER,
+        "workshop" => WORKSHOP,
+        "glacier" => GLACIER,
+        _ => return None,
+    })
+}
+
 /// A course's colours.
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {
@@ -195,93 +209,6 @@ pub struct Relief {
 #[cfg(test)]
 const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], cottages: &[], belts: &[], walls: false, crevasses: &[], lake: 0.0 };
 
-/// Eggnogg: up from the start to a high ridge in the north, a kicker off
-/// its edge down into the eggnog basin, rolling hills through the hairpins
-/// in the east, and on the south shore a kicker over a creamy inlet that
-/// crosses the road. Fall short and you wade.
-const EGGNOGG_RELIEF: Relief = Relief {
-    keys: &[
-        (0.0, 0.0),
-        (0.04, 0.0),
-        (0.12, 18.0),
-        (0.2, 18.0),
-        (0.27, -6.0),
-        (0.35, -2.0),
-        (0.42, 6.0),
-        (0.5, 2.0),
-        (0.58, 8.0),
-        (0.64, 4.0),
-        // a hill, then down toward the inlet so you see it coming
-        (0.705, 9.0),
-        (0.775, -3.0),
-        (0.81, -3.0),
-        (0.9, 2.0),
-    ],
-    kickers: &[(0.2, 3.5, 26), (0.775, 4.5, 22)],
-    inlets: &[(0.7765, 22)],
-    on_lake: &[],
-    holes: &[],
-    cottages: &[],
-    belts: &[],
-    walls: false,
-    crevasses: &[],
-    lake: -20.0,
-};
-
-/// Thin Ice: round the hilly north and east shores, off the bank onto the
-/// frozen lake with a kicker, and home across the ice past holes.
-const THIN_ICE_RELIEF: Relief = Relief {
-    keys: &[
-        (0.0, 1.0),
-        (0.1, 10.0),
-        (0.18, 16.0),
-        (0.27, 8.0),
-        (0.36, 14.0),
-        (0.44, 6.0),
-        (0.52, 12.0),
-        (0.61, 6.0),
-        (0.69, 9.0),
-        (0.755, 5.0),
-        (0.775, 0.0),
-        (0.935, 0.0),
-        (0.97, 1.0),
-    ],
-    kickers: &[(0.765, 3.0, 22)],
-    inlets: &[],
-    on_lake: &[(0.775, 0.935)],
-    holes: &[
-        (0.795, -6.5, 3.5),
-        (0.815, 6.0, 4.0),
-        (0.835, 0.0, 3.0),
-        (0.852, -7.0, 4.5),
-        (0.87, 7.5, 4.0),
-        (0.888, -2.5, 3.2),
-        (0.905, 6.5, 3.8),
-        (0.92, -6.0, 3.5),
-    ],
-    cottages: &[],
-    belts: &[],
-    walls: false,
-    crevasses: &[],
-    lake: 0.0,
-};
-
-const THIN_ICE_PTS: &[(f32, f32)] = &[
-    (140.0, 720.0),
-    (128.0, 470.0),
-    (190.0, 270.0),
-    (360.0, 155.0),
-    (590.0, 135.0),
-    (790.0, 190.0),
-    (905.0, 360.0),
-    (890.0, 590.0),
-    (790.0, 760.0),
-    (640.0, 800.0),
-    (480.0, 720.0),
-    (330.0, 650.0),
-    (215.0, 770.0),
-];
-
 /// Candy Cane Forest: lilac dusk, mint kerbs, pink-tinged snow and a
 /// frozen strawberry-milk lake with sprinkles.
 pub const CANDY: Theme = Theme {
@@ -303,57 +230,6 @@ pub const CANDY: Theme = Theme {
     seracs: false,
 };
 
-/// Candy Cane Forest: winding through the canes, over a big hill with a
-/// kicker on its top, round a frozen strawberry-milk lake.
-const CANDY_RELIEF: Relief = Relief {
-    keys: &[
-        (0.0, 0.0),
-        (0.07, 6.0),
-        (0.13, 2.0),
-        (0.19, 10.0),
-        (0.25, 4.0),
-        (0.31, 15.0),
-        (0.37, 4.0),
-        (0.43, 10.0),
-        (0.49, 6.0),
-        (0.55, 12.0),
-        (0.61, 3.0),
-        (0.67, 8.0),
-        (0.74, 2.0),
-        (0.81, 6.0),
-        (0.87, -2.0),
-        (0.94, 2.0),
-    ],
-    kickers: &[(0.31, 3.5, 24)],
-    inlets: &[],
-    on_lake: &[],
-    holes: &[],
-    cottages: &[],
-    belts: &[],
-    walls: false,
-    crevasses: &[],
-    lake: -14.0,
-};
-
-const CANDY_PTS: &[(f32, f32)] = &[
-    (160.0, 820.0),
-    (130.0, 600.0),
-    (240.0, 470.0),
-    (140.0, 330.0),
-    (230.0, 170.0),
-    (420.0, 140.0),
-    (520.0, 290.0),
-    (650.0, 160.0),
-    (830.0, 170.0),
-    (895.0, 330.0),
-    (780.0, 460.0),
-    (885.0, 610.0),
-    (845.0, 810.0),
-    (650.0, 870.0),
-    (500.0, 760.0),
-    (340.0, 885.0),
-];
-
 /// Gingerbread Village: an amber evening, icing kerbs, a frozen syrup pond.
 pub const GINGER: Theme = Theme {
     road: (182, 168, 166),
@@ -373,55 +249,6 @@ pub const GINGER: Theme = Theme {
     indoors: false,
     seracs: false,
 };
-
-/// Gingerbread Village: through the village and up over a hill with a
-/// kicker on top, round the syrup pond.
-const GINGER_RELIEF: Relief = Relief {
-    keys: &[
-        (0.0, 0.0),
-        (0.08, 4.0),
-        (0.16, 1.0),
-        (0.26, 9.0),
-        (0.33, 14.0),
-        // a steep drop off the hilltop kicker, a cottage in the dip below:
-        // fly over its roof
-        (0.345, 7.0),
-        (0.4, 4.0),
-        (0.5, 7.0),
-        (0.6, 2.0),
-        (0.7, 8.0),
-        (0.8, 3.0),
-        (0.9, 5.0),
-    ],
-    kickers: &[(0.33, 3.0, 22)],
-    inlets: &[],
-    on_lake: &[],
-    holes: &[],
-    cottages: &[(0.3385, 0.42)],
-    belts: &[],
-    walls: false,
-    crevasses: &[],
-    lake: -10.0,
-};
-
-const GINGER_PTS: &[(f32, f32)] = &[
-    (200.0, 860.0),
-    (140.0, 660.0),
-    (210.0, 500.0),
-    (360.0, 470.0),
-    (420.0, 330.0),
-    (300.0, 190.0),
-    (470.0, 120.0),
-    (660.0, 150.0),
-    (720.0, 300.0),
-    (860.0, 260.0),
-    (900.0, 450.0),
-    (760.0, 560.0),
-    (860.0, 720.0),
-    (720.0, 880.0),
-    (540.0, 800.0),
-    (400.0, 890.0),
-];
 
 /// Santa's workshop, indoors: polished floorboards, painted kerbs, wood
 /// shavings off the track, wooden walls, rafters and warm lamps above.
@@ -444,39 +271,6 @@ pub const WORKSHOP: Theme = Theme {
     seracs: false,
 };
 
-/// The Workshop: along the floor between the toy stacks, onto conveyor
-/// belts, up a ramp to the mezzanine and off its edge with a kicker.
-const WORKSHOP_RELIEF: Relief = Relief {
-    keys: &[(0.0, 0.0), (0.26, 0.0), (0.33, 16.0), (0.42, 16.0), (0.47, 0.0), (0.7, 0.0), (0.76, 3.0), (0.82, 0.0)],
-    kickers: &[(0.42, 3.0, 22)],
-    inlets: &[],
-    on_lake: &[],
-    holes: &[],
-    cottages: &[],
-    belts: &[(0.08, 150), (0.52, 180), (0.86, 160)],
-    walls: true,
-    crevasses: &[],
-    lake: 0.0,
-};
-
-const WORKSHOP_PTS: &[(f32, f32)] = &[
-    (180.0, 820.0),
-    (160.0, 560.0),
-    (170.0, 300.0),
-    (300.0, 170.0),
-    (520.0, 170.0),
-    (560.0, 330.0),
-    (440.0, 450.0),
-    (560.0, 580.0),
-    (760.0, 520.0),
-    (800.0, 300.0),
-    (900.0, 200.0),
-    (910.0, 560.0),
-    (860.0, 830.0),
-    (620.0, 860.0),
-    (400.0, 780.0),
-];
-
 /// The Glacier: night under the northern lights, packed snow on blue
 /// glacier ice, seracs standing about like broken teeth.
 pub const GLACIER: Theme = Theme {
@@ -498,38 +292,6 @@ pub const GLACIER: Theme = Theme {
     seracs: true,
 };
 
-/// The Glacier: a long climb up the ice, then a fast run down it over two
-/// crevasses, each with a kicker before it. Come at them slow and you're in.
-const GLACIER_RELIEF: Relief = Relief {
-    keys: &[(0.0, 0.0), (0.06, 0.0), (0.2, 14.0), (0.32, 30.0), (0.44, 32.0), (0.52, 24.0), (0.62, 16.0), (0.7, 14.0), (0.8, 6.0), (0.93, 0.0)],
-    kickers: &[(0.55, 3.5, 24), (0.75, 3.5, 24)],
-    inlets: &[],
-    on_lake: &[],
-    holes: &[],
-    cottages: &[],
-    belts: &[],
-    walls: false,
-    crevasses: &[(0.5505, 16), (0.7505, 16)],
-    lake: -20.0,
-};
-
-const GLACIER_PTS: &[(f32, f32)] = &[
-    (160.0, 820.0),
-    (140.0, 560.0),
-    (190.0, 320.0),
-    (330.0, 180.0),
-    (560.0, 140.0),
-    (780.0, 180.0),
-    (890.0, 340.0),
-    (880.0, 560.0),
-    (760.0, 660.0),
-    (600.0, 620.0),
-    (470.0, 700.0),
-    (500.0, 860.0),
-    (380.0, 920.0),
-    (230.0, 920.0),
-];
-
 /// A bright, overcast winter morning.
 pub const MORNING: Theme = Theme {
     road: (172, 178, 198),
@@ -550,101 +312,11 @@ pub const MORNING: Theme = Theme {
     seracs: false,
 };
 
-/// Frozen Lake: the start straight climbs a ridge along the west shore to a
-/// kicker on the crest, rolls down the north bank, over the hills of the
-/// east side, round the hairpin, then a second kicker throws you down to
-/// the lake shore for the run home along the south.
-const FROZEN_RELIEF: Relief = Relief {
-    keys: &[
-        (0.0, 0.0),
-        (0.035, 0.0),
-        (0.125, 26.0),
-        (0.14, 21.0),
-        (0.2, 10.0),
-        (0.26, 10.0),
-        (0.33, 22.0),
-        (0.42, 4.0),
-        (0.5, 15.0),
-        (0.56, 8.0),
-        (0.62, 12.0),
-        (0.66, -6.0),
-        (0.75, -9.0),
-        (0.9, -6.0),
-    ],
-    kickers: &[(0.125, 3.5, 26), (0.62, 3.5, 26)],
-    inlets: &[],
-    on_lake: &[],
-    holes: &[],
-    cottages: &[],
-    belts: &[],
-    walls: false,
-    crevasses: &[],
-    lake: -26.0,
-};
-
-/// The courses, in menu order.
-pub fn courses() -> [(&'static str, fn() -> Track); 7] {
-    [
-        ("Frozen Lake", Track::frozen_lake),
-        ("Eggnogg", Track::eggnogg),
-        ("Thin Ice", Track::thin_ice),
-        ("Candy Cane Forest", Track::candy_cane_forest),
-        ("Gingerbread Village", Track::gingerbread_village),
-        ("The Workshop", Track::workshop),
-        ("The Glacier", Track::glacier),
-    ]
+/// The courses in order, by name, each with a way to build its track
+/// (from its file in `courses/`, see `course.rs`).
+pub fn courses() -> Vec<(&'static str, Box<dyn Fn() -> Track>)> {
+    crate::course::all().iter().map(|c| (c.name, Box::new(move || c.build()) as Box<dyn Fn() -> Track>)).collect()
 }
-
-/// Control points of the first course, Frozen Lake: start straight running
-/// north up the west shore, a sweep along the north bank, an S down the east
-/// side, a hairpin, an inner wiggle and back along the south shore.
-const FROZEN_LAKE: &[(f32, f32)] = &[
-    (170.0, 760.0),
-    (168.0, 560.0),
-    (175.0, 380.0),
-    (210.0, 235.0),
-    (330.0, 145.0),
-    (520.0, 130.0),
-    (700.0, 150.0),
-    (855.0, 205.0),
-    (905.0, 330.0),
-    (845.0, 450.0),
-    (900.0, 575.0),
-    (860.0, 705.0),
-    (765.0, 800.0),
-    (650.0, 765.0),
-    (600.0, 630.0),
-    (480.0, 565.0),
-    (385.0, 640.0),
-    (335.0, 815.0),
-    (255.0, 885.0),
-    (185.0, 850.0),
-];
-
-/// Eggnogg: twistier, round a lake of eggnog, with a run of hairpins in the
-/// east and ice in the bends.
-const EGGNOGG_PTS: &[(f32, f32)] = &[
-    (150.0, 520.0),
-    (152.0, 320.0),
-    (230.0, 175.0),
-    (380.0, 150.0),
-    (475.0, 250.0),
-    (430.0, 380.0),
-    (520.0, 465.0),
-    (650.0, 425.0),
-    (700.0, 290.0),
-    (820.0, 180.0),
-    (915.0, 265.0),
-    (890.0, 420.0),
-    (800.0, 525.0),
-    (865.0, 655.0),
-    (830.0, 825.0),
-    (680.0, 880.0),
-    (540.0, 800.0),
-    (420.0, 865.0),
-    (270.0, 875.0),
-    (165.0, 765.0),
-];
 
 fn catmull(p0: (f32, f32), p1: (f32, f32), p2: (f32, f32), p3: (f32, f32), t: f32) -> (f32, f32) {
     let t2 = t * t;
@@ -805,64 +477,38 @@ fn hash(x: i32, y: i32) -> u32 {
 }
 
 impl Track {
+    #[cfg(test)]
     pub fn frozen_lake() -> Track {
-        // the first course, for learning: hills, jumps, the inlet and a
-        // little ice, but no weather or wildlife (Thin Ice has those)
-        let mut t = Track::build("Frozen Lake", FROZEN_LAKE, 14.0, FROZEN, &FROZEN_RELIEF);
-        t.add_ice(&[(0.36, -5.0, 6.0), (0.64, 4.0, 7.0)]);
-        t
+        crate::course::named("Frozen Lake").build()
     }
 
+    #[cfg(test)]
     pub fn eggnogg() -> Track {
-        let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &EGGNOGG_RELIEF);
-        t.yule_cat = Some(0.38);
-        t.yule_lads = true;
-        t.add_ice(&[(0.17, 3.0, 6.0), (0.45, -4.0, 7.0), (0.58, 5.0, 6.0), (0.86, 0.0, 8.0)]);
-        t
+        crate::course::named("Eggnogg").build()
     }
 
-    pub fn candy_cane_forest() -> Track {
-        let mut t = Track::build("Candy Cane Forest", CANDY_PTS, 14.0, CANDY, &CANDY_RELIEF);
-        t.twisters = 1;
-        t.yule_lads = true;
-        t.add_ice(&[(0.22, 4.0, 6.0), (0.58, -4.0, 7.0)]);
-        t
-    }
-
+    #[cfg(test)]
     pub fn gingerbread_village() -> Track {
-        let mut t = Track::build("Gingerbread Village", GINGER_PTS, 14.0, GINGER, &GINGER_RELIEF);
-        t.add_ice(&[(0.12, -4.0, 6.0), (0.64, 3.0, 7.0)]);
-        t.yule_lads = true;
-        t
+        crate::course::named("Gingerbread Village").build()
     }
 
+    #[cfg(test)]
     pub fn workshop() -> Track {
-        let mut t = Track::build("The Workshop", WORKSHOP_PTS, 14.0, WORKSHOP, &WORKSHOP_RELIEF);
-        t.yule_lads = true;
-        t.stands = vec![0.18, 0.31, 0.63, 0.77, 0.95];
-        // clear the toys out of the stands
-        let spots = crate::crowd::spots(&t);
-        t.trees.retain(|p| spots.iter().all(|s| (s.0 - p.x).hypot(s.1 - p.y) > 6.0));
-        t
+        crate::course::named("The Workshop").build()
     }
 
+    #[cfg(test)]
     pub fn glacier() -> Track {
-        let mut t = Track::build("The Glacier", GLACIER_PTS, 14.0, GLACIER, &GLACIER_RELIEF);
-        t.blizzards = true;
-        t.add_ice(&[(0.24, 4.0, 7.0), (0.4, -5.0, 6.0), (0.66, 0.0, 8.0), (0.86, 5.0, 6.0)]);
-        t
+        crate::course::named("The Glacier").build()
     }
 
+    #[cfg(test)]
     pub fn thin_ice() -> Track {
-        let mut t = Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF);
-        t.blizzards = true;
-        t.twisters = 1;
-        t.penguins = Some(0.83);
-        t
+        crate::course::named("Thin Ice").build()
     }
 
     /// Ice patches at (fraction of the lap, offset right, radius).
-    fn add_ice(&mut self, at: &[(f32, f32, f32)]) {
+    pub(crate) fn add_ice(&mut self, at: &[(f32, f32, f32)]) {
         for &(f, side, r) in at {
             let i = (self.len() as f32 * f) as usize;
             let (px, py) = self.pts[i];
@@ -885,7 +531,7 @@ impl Track {
         Track::build("Ring", &ctrl, half, FROZEN, &FLAT)
     }
 
-    fn build(name: &'static str, ctrl: &[(f32, f32)], half: f32, theme: Theme, relief: &'static Relief) -> Track {
+    pub(crate) fn build(name: &'static str, ctrl: &[(f32, f32)], half: f32, theme: Theme, relief: &'static Relief) -> Track {
         let pts = resample(ctrl, 1.0);
         // how far around each sample the map is filled in
         let reach = BANK_FROM.max(half + 4.0) as i32 + 16;
@@ -1264,3 +910,4 @@ mod tests {
         assert_eq!(e.kicks.len(), 2);
     }
 }
+

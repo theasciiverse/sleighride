@@ -1,0 +1,59 @@
+name = "Eggnogg"
+look = "Sunset by a lake of eggnog"
+about = "Twisty and icy. Mind the Yule Cat and the Yule Lads."
+theme = "eggnogg"
+half = 13.0
+lake = -20.0
+yule_cat = 0.38
+yule_lads = true
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [150.0, 520.0],
+    [152.0, 320.0],
+    [230.0, 175.0],
+    [380.0, 150.0],
+    [475.0, 250.0],
+    [430.0, 380.0],
+    [520.0, 465.0],
+    [650.0, 425.0],
+    [700.0, 290.0],
+    [820.0, 180.0],
+    [915.0, 265.0],
+    [890.0, 420.0],
+    [800.0, 525.0],
+    [865.0, 655.0],
+    [830.0, 825.0],
+    [680.0, 880.0],
+    [540.0, 800.0],
+    [420.0, 865.0],
+    [270.0, 875.0],
+    [165.0, 765.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.04, 0.0],
+    [0.12, 18.0],
+    [0.2, 18.0],
+    [0.27, -6.0],
+    [0.35, -2.0],
+    [0.42, 6.0],
+    [0.5, 2.0],
+    [0.58, 8.0],
+    [0.64, 4.0],
+    [0.705, 9.0],
+    [0.775, -3.0],
+    [0.81, -3.0],
+    [0.9, 2.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.2, 3.5, 26], [0.775, 4.5, 22]]
+
+# arms of the lake across the road: [fraction of the lap, length]
+inlets = [[0.7765, 22]]
+
+# ice patches: [fraction of the lap, offset right, radius]
+ice = [[0.17, 3.0, 6.0], [0.45, -4.0, 7.0], [0.58, 5.0, 6.0], [0.86, 0.0, 8.0]]

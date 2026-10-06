@@ -1,0 +1,54 @@
+name = "Frozen Lake"
+look = "Aurora night over a frozen lake"
+about = "Hills, two jumps and an inlet. The one to learn on."
+theme = "frozen"
+half = 14.0
+lake = -26.0
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [170.0, 760.0],
+    [168.0, 560.0],
+    [175.0, 380.0],
+    [210.0, 235.0],
+    [330.0, 145.0],
+    [520.0, 130.0],
+    [700.0, 150.0],
+    [855.0, 205.0],
+    [905.0, 330.0],
+    [845.0, 450.0],
+    [900.0, 575.0],
+    [860.0, 705.0],
+    [765.0, 800.0],
+    [650.0, 765.0],
+    [600.0, 630.0],
+    [480.0, 565.0],
+    [385.0, 640.0],
+    [335.0, 815.0],
+    [255.0, 885.0],
+    [185.0, 850.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.035, 0.0],
+    [0.125, 26.0],
+    [0.14, 21.0],
+    [0.2, 10.0],
+    [0.26, 10.0],
+    [0.33, 22.0],
+    [0.42, 4.0],
+    [0.5, 15.0],
+    [0.56, 8.0],
+    [0.62, 12.0],
+    [0.66, -6.0],
+    [0.75, -9.0],
+    [0.9, -6.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.125, 3.5, 26], [0.62, 3.5, 26]]
+
+# ice patches: [fraction of the lap, offset right, radius]
+ice = [[0.36, -5.0, 6.0], [0.64, 4.0, 7.0]]

@@ -1116,7 +1116,7 @@ mod balance {
     use super::*;
 
     /// Average place of each racer with everyone on autopilot.
-    fn average_places(make: fn() -> Track, runs: u32) -> Vec<f32> {
+    fn average_places(make: impl Fn() -> Track, runs: u32) -> Vec<f32> {
         let mut sum = vec![0u32; ROSTER.len()];
         for seed in 1..=runs {
             let mut r = Race::new(make(), None, seed * 977);

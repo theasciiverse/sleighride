@@ -52,16 +52,6 @@ pub enum Phase {
     Race,
 }
 
-/// What each course is like, for the course page: (the look, what's on it).
-pub const COURSE_NOTES: [(&str, &str); 7] = [
-    ("Aurora night over a frozen lake", "Hills, two jumps and an inlet. The one to learn on."),
-    ("Sunset by a lake of eggnog", "Twisty and icy. Mind the Yule Cat and the Yule Lads."),
-    ("Out on the frozen lake itself", "Black ice, holes in the ice, blizzards, penguins, a bear."),
-    ("Lilac dusk among giant candy canes", "Hills, a big jump, a snow tornado and the Yule Lads."),
-    ("Amber evening in a gingerbread village", "Fly over the cottage in the road, or go round it."),
-    ("Indoors, in Santa's workshop", "Conveyor belts, a mezzanine jump, and the crowd throws presents."),
-    ("A glacier under the northern lights", "A long climb, then down over two crevasses. Hit them fast."),
-];
 
 pub struct Game {
     pub phase: Phase,
@@ -784,7 +774,8 @@ impl Game {
         let (w, h) = (area.width, area.height);
         let n = courses().len();
         let centre = |buf: &mut Buffer, y: u16, text: &str, style: Style| put_text(buf, w.saturating_sub(text.chars().count() as u16) / 2, y, text, style);
-        let (look, what) = COURSE_NOTES[self.course.min(COURSE_NOTES.len() - 1)];
+        let c = &crate::course::all()[self.course.min(courses().len() - 1)];
+        let (look, what) = (c.look, c.about);
         let y = (h as f32 * 0.80) as u16;
         centre(buf, y, &format!(" {look} "), panel_style());
         centre(buf, y + 1, &format!(" {what} "), panel_style());
@@ -1413,8 +1404,4 @@ mod tests {
         assert!(!screen_text(&g, &input).contains("Crevasses"));
     }
 
-    #[test]
-    fn every_course_has_notes_for_the_course_page() {
-        assert_eq!(COURSE_NOTES.len(), courses().len());
-    }
 }

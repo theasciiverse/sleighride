@@ -1,0 +1,54 @@
+name = "Candy Cane Forest"
+look = "Lilac dusk among giant candy canes"
+about = "Hills, a big jump, a snow tornado and the Yule Lads."
+theme = "candy"
+half = 14.0
+lake = -14.0
+twisters = 1
+yule_lads = true
+
+# the centreline, a closed loop through these points (map is 1024 square)
+points = [
+    [160.0, 820.0],
+    [130.0, 600.0],
+    [240.0, 470.0],
+    [140.0, 330.0],
+    [230.0, 170.0],
+    [420.0, 140.0],
+    [520.0, 290.0],
+    [650.0, 160.0],
+    [830.0, 170.0],
+    [895.0, 330.0],
+    [780.0, 460.0],
+    [885.0, 610.0],
+    [845.0, 810.0],
+    [650.0, 870.0],
+    [500.0, 760.0],
+    [340.0, 885.0],
+]
+
+# road height along the lap: [fraction of the lap, height]
+hills = [
+    [0.0, 0.0],
+    [0.07, 6.0],
+    [0.13, 2.0],
+    [0.19, 10.0],
+    [0.25, 4.0],
+    [0.31, 15.0],
+    [0.37, 4.0],
+    [0.43, 10.0],
+    [0.49, 6.0],
+    [0.55, 12.0],
+    [0.61, 3.0],
+    [0.67, 8.0],
+    [0.74, 2.0],
+    [0.81, 6.0],
+    [0.87, -2.0],
+    [0.94, 2.0],
+]
+
+# jumps: [fraction of the lap at the lip, rise, run-up in samples]
+kickers = [[0.31, 3.5, 24]]
+
+# ice patches: [fraction of the lap, offset right, radius]
+ice = [[0.22, 4.0, 6.0], [0.58, -4.0, 7.0]]
