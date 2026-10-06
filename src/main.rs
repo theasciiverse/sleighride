@@ -1,5 +1,6 @@
 mod audio;
 mod auto;
+mod birds;
 mod game;
 mod input;
 mod kart;

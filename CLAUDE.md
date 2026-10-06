@@ -114,7 +114,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 27 tests, including a full six-racer race on each course (winner to last
+- 29 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -251,8 +251,13 @@ David wants all of these (2026-10-06), roughly in this order:
       **Needs David's ears:** levels and character were checked only by
       tests (every effect and voice audible, peaks in range), not listened
       to
-- [ ] Birds: crows lifting off the pines as you pass, a flock wheeling
-      across the sky
+- [x] Birds (2026-10-06, `birds.rs`, scenery only): crows on pines by
+      the road flap off, climbing and veering away, when a racer comes
+      within 24 units, and are back on their perch 22 s later; every 30 s
+      a flock of eleven drifts across the sky ahead in a loose V for 16 s.
+      The flock flies in the camera's frame (far, high birds seem to keep
+      pace), pale against Frozen Lake's night, dark against Eggnogg's
+      sunset (`Theme::birds`)
 - [ ] Hills for Eggnogg: a big drop into the eggnog basin, a jump over a
       creamy inlet
 - [ ] Many more courses (and a track format instead of control points in

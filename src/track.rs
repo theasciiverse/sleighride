@@ -35,6 +35,8 @@ pub struct Theme {
     /// Far and near mountains.
     pub hills: [(u8, u8, u8); 2],
     pub aurora: bool,
+    /// The flock against this sky.
+    pub birds: (u8, u8, u8),
 }
 
 pub const FROZEN: Theme = Theme {
@@ -49,6 +51,7 @@ pub const FROZEN: Theme = Theme {
     haze: (196, 206, 234),
     hills: [(124, 132, 190), (70, 80, 132)],
     aurora: true,
+    birds: (226, 232, 248),
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -64,6 +67,7 @@ pub const EGGNOGG: Theme = Theme {
     haze: (246, 212, 188),
     hills: [(196, 128, 150), (120, 70, 110)],
     aurora: false,
+    birds: (52, 30, 52),
 };
 
 #[derive(Clone, Copy)]

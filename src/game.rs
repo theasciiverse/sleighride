@@ -73,6 +73,7 @@ pub struct Game {
     last_count: i32,
     last_laps: usize,
     pub race: Race,
+    birds: crate::birds::Birds,
     cam: Camera,
     particles: Vec<Particle>,
     pub paused: bool,
@@ -108,7 +109,8 @@ impl Game {
         let mut race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
         race.rival_pace = DIFFICULTY[level].1;
         let cam = Camera::behind(&race.racers[pick].kart);
-        let mut g = Game { phase, course, pick, level, story_seen: false, page: 0, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        let birds = crate::birds::Birds::new(&race.track);
+        let mut g = Game { phase, course, pick, level, story_seen: false, page: 0, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, birds, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
         if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
@@ -223,6 +225,9 @@ impl Game {
             log::debug!("controls {after:?}");
         }
         self.cam.follow(&self.race.racers[me].kart, &self.race.track, DT);
+        let where_: Vec<(f32, f32)> = self.race.racers.iter().map(|r| (r.kart.x, r.kart.y)).collect();
+        let ground = self.race.track.height(self.cam.x, self.cam.y);
+        self.birds.step(DT, &where_, (self.cam.x, self.cam.y, self.cam.angle, ground));
         self.react(me);
         self.spawn_particles();
         for p in &mut self.particles {
@@ -411,7 +416,7 @@ impl Game {
 
     fn scene_canvas(&self, cols: u16, rows: u16) -> Canvas {
         let mut cv = Canvas::new(cols, rows);
-        let scene = Scene { race: &self.race, cam: self.cam, particles: &self.particles, time: self.race.clock };
+        let scene = Scene { race: &self.race, birds: &self.birds, cam: self.cam, particles: &self.particles, time: self.race.clock };
         render::draw_scene(&mut cv, &scene);
         cv
     }

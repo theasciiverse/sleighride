@@ -651,6 +651,39 @@ fn sprig(cv: &mut Canvas, x: f32, y: f32, px: f32, time: f32) {
     }
 }
 
+/// A bird on the wing, `size` pixels per unit; its wings beat with `flap`.
+fn bird(cv: &mut Canvas, x: f32, y: f32, size: f32, flap: f32, c: Rgb) {
+    let span = (size * 2.6).clamp(2.5, 16.0);
+    // wings up, level, down, level
+    let lift = match (flap.fract() * 4.0) as u32 {
+        0 => -0.7,
+        1 | 3 => 0.0,
+        _ => 0.45,
+    } * span;
+    let steps = (span * 2.0) as i32 + 1;
+    for k in 0..=steps {
+        let f = k as f32 / steps as f32;
+        // each wing bows a little
+        let dy = lift * f + (f * (1.0 - f)) * span * 0.3;
+        cv.put((x - span * f) as i32, (y + dy) as i32, c);
+        cv.put((x + span * f) as i32, (y + dy) as i32, c);
+    }
+    cv.put(x as i32, y as i32 + 1, c);
+}
+
+/// A crow sitting on a branch: a dark body and a beak.
+fn perched(cv: &mut Canvas, x: f32, y: f32, size: f32, c: Rgb) {
+    let s = (size * 1.0).clamp(1.5, 6.0) as i32;
+    for dy in -s..=0 {
+        for dx in -s..=s {
+            if dx * dx + dy * dy * 2 <= s * s + 1 {
+                cv.put(x as i32 + dx, y as i32 + dy, c);
+            }
+        }
+    }
+    cv.put(x as i32 + s + 1, y as i32 - s / 2, (210, 170, 60));
+}
+
 /// Santa's big white mitten with its red cuff.
 fn mitten(cv: &mut Canvas, x: f32, y: f32, s: i32) {
     const M: [&str; 6] = [".WWW.WW", "WWWWWWW", "WWWWWWW", "WWWWWW.", ".WWWW..", ".RRRR.."];
@@ -699,6 +732,7 @@ fn ball(cv: &mut Canvas, x: f32, y: f32, r: f32, c: Rgb, rim: Rgb) {
 
 pub struct Scene<'a> {
     pub race: &'a Race,
+    pub birds: &'a crate::birds::Birds,
     pub cam: Camera,
     pub particles: &'a [Particle],
     pub time: f32,
@@ -711,6 +745,8 @@ enum Thing {
     Box,
     Shot(usize),
     Trap,
+    Crow(usize),
+    Flyer(usize),
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
@@ -756,7 +792,15 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     for t in &r.traps {
         things.push((depth(t.x, t.y), t.x, t.y, Thing::Trap));
     }
-    things.retain(|t| t.0 > 1.0 && t.0 < FAR);
+    for (i, c) in s.birds.crows.iter().enumerate() {
+        if !matches!(c.state, crate::birds::Perch::Away(_)) {
+            things.push((depth(c.x, c.y), c.x, c.y, Thing::Crow(i)));
+        }
+    }
+    for (i, f) in s.birds.flock.iter().enumerate() {
+        things.push((depth(f.x, f.y), f.x, f.y, Thing::Flyer(i)));
+    }
+    things.retain(|t| t.0 > 1.0 && t.0 < FAR * 1.4);
     things.sort_by(|a, b| b.0.total_cmp(&a.0));
     let tr = &r.track;
     for (z, x, y, thing) in things {
@@ -820,6 +864,22 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                             m.draw(cv, &pose);
                         }
                     }
+                }
+            }
+            Thing::Crow(i) => {
+                let c = &s.birds.crows[i];
+                if let Some((bx, by, sc)) = v.project(&s.cam, c.x, c.y, c.z) {
+                    let col = mix((30, 26, 36), haze, fog);
+                    match c.state {
+                        crate::birds::Perch::Sitting => perched(cv, bx, by, sc, col),
+                        _ => bird(cv, bx, by, sc * 1.1, c.flap, col),
+                    }
+                }
+            }
+            Thing::Flyer(i) => {
+                let f = &s.birds.flock[i];
+                if let Some((bx, by, sc)) = v.project(&s.cam, f.x, f.y, f.z) {
+                    bird(cv, bx, by, sc * 1.3, f.flap, mix(th.birds, haze, fog * 0.6));
                 }
             }
             Thing::Trap => {
