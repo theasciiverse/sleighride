@@ -5,6 +5,7 @@
 //! countdown, three laps and a results card; after the finish the autopilot
 //! takes the sleigh round a cool-down lap.
 
+use crate::audio::{self, Music, Sfx};
 use crate::input::{Cmd, Input};
 use crate::kart::{Controls, Event, DT};
 use crate::model::{Model, Pose, FRAMES};
@@ -63,6 +64,14 @@ pub struct Game {
     /// The story has been shown this run; and which page is up.
     story_seen: bool,
     page: usize,
+    /// Sounds to play, with volume; the main loop takes them each frame.
+    pub sounds: Vec<(Sfx, f32)>,
+    /// Mute and music toggles for the main loop.
+    pub audio_cmds: Vec<Cmd>,
+    /// The countdown number last shown, and the player's laps done, so
+    /// each sounds once.
+    last_count: i32,
+    last_laps: usize,
     pub race: Race,
     cam: Camera,
     particles: Vec<Particle>,
@@ -99,12 +108,13 @@ impl Game {
         let mut race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
         race.rival_pace = DIFFICULTY[level].1;
         let cam = Camera::behind(&race.racers[pick].kart);
-        let mut g = Game { phase, course, pick, level, story_seen: false, page: 0, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        let mut g = Game { phase, course, pick, level, story_seen: false, page: 0, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
         if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
                 g.step_race(Controls::default());
             }
+            g.sounds.clear();
         }
         g
     }
@@ -112,8 +122,12 @@ impl Game {
     fn switch(&mut self, p: Phase, course: usize, input: &mut Input) {
         log::info!("phase {:?} -> {p:?} on {} as {}, {}", self.phase, courses()[course].0, ROSTER[self.pick].name, DIFFICULTY[self.level].0);
         let seen = self.story_seen;
+        let sounds = std::mem::take(&mut self.sounds);
+        let audio_cmds = std::mem::take(&mut self.audio_cmds);
         *self = Game::new(p, course, self.pick, self.level);
         self.story_seen = seen;
+        self.sounds = sounds;
+        self.audio_cmds = audio_cmds;
         input.clear();
     }
 
@@ -141,7 +155,11 @@ impl Game {
         let n = courses().len();
         for c in cmds {
             log::debug!("cmd {c:?}");
+            if self.phase != Phase::Race && matches!(c, Cmd::Left | Cmd::Right | Cmd::Up | Cmd::Down | Cmd::Confirm) {
+                self.sounds.push((Sfx::Click, 0.8));
+            }
             match (self.phase, c) {
+                (_, Cmd::Mute) | (_, Cmd::Music) => self.audio_cmds.push(c),
                 (_, Cmd::Exit) => self.exit = true,
                 (_, Cmd::Help) => self.help = !self.help,
                 (_, Cmd::Back) | (_, Cmd::Confirm) if self.help => self.help = false,
@@ -227,10 +245,61 @@ impl Game {
         }
     }
 
-    /// Messages and effects for what just happened.
+    /// How loud something at (x, y) is from where the camera is.
+    fn near(&self, x: f32, y: f32) -> f32 {
+        let d = (x - self.race.racers[self.me()].kart.x).hypot(y - self.race.racers[self.me()].kart.y);
+        (1.0 - d / 150.0).clamp(0.0, 1.0)
+    }
+
+    /// Messages, effects and sounds for what just happened.
     fn react(&mut self, me: usize) {
         let playing = self.phase == Phase::Race;
         let events = self.race.racers[me].kart.events.clone();
+        for e in &events {
+            let sfx = match e {
+                Event::Hop => Some((Sfx::Hop, 0.7)),
+                Event::Tier(1) => Some((Sfx::Tier1, 1.0)),
+                Event::Tier(2) => Some((Sfx::Tier2, 1.0)),
+                Event::Tier(_) => Some((Sfx::Tier3, 1.0)),
+                Event::Boost(_) | Event::GoodStart => Some((Sfx::Boost, 1.0)),
+                Event::RocketStart => Some((Sfx::Fanfare, 1.0)),
+                Event::Stall => Some((Sfx::Stall, 1.0)),
+                Event::Bank => Some((Sfx::Thud, 0.8)),
+                Event::Tree => Some((Sfx::Thunk, 1.0)),
+                Event::Hit => Some((Sfx::Hit, 1.0)),
+                Event::Launch => Some((Sfx::Launch, 0.9)),
+                Event::Trick => Some((Sfx::Zing, 0.5)),
+                Event::Land { trick: true } => Some((Sfx::Trick, 1.0)),
+                Event::Land { trick: false } => Some((Sfx::Land, 1.0)),
+            };
+            if let Some(s) = sfx {
+                self.sounds.push((s.0, if playing { s.1 } else { s.1 * 0.4 }));
+            }
+            if let Event::Land { trick: true } = e {
+                self.sounds.push((Sfx::Land, 0.8));
+            }
+        }
+        if playing {
+            // the countdown beeps, then GO
+            let count = if self.race.counting_down() { (COUNTDOWN - self.race.clock).ceil() as i32 } else { 0 };
+            if count != self.last_count {
+                self.sounds.push((if count == 0 { Sfx::Go } else { Sfx::Beep }, 1.0));
+                self.last_count = count;
+            }
+            let p = &self.race.racers[me];
+            if p.lap_times.len() != self.last_laps {
+                self.last_laps = p.lap_times.len();
+                if p.finished.is_none() {
+                    self.sounds.push((Sfx::Lap, 1.0));
+                    if p.lap == LAPS {
+                        self.sounds.push((Sfx::Fanfare, 0.8));
+                    }
+                }
+            }
+            if p.roulette > 0.0 && ((p.roulette * 14.0).floor() != ((p.roulette + DT) * 14.0).floor()) {
+                self.sounds.push((Sfx::Tick, 0.8));
+            }
+        }
         for e in events {
             if playing {
                 log::info!("event {e:?}");
@@ -244,6 +313,31 @@ impl Game {
             self.flash = Some((text.into(), 1.2, col));
         }
         let notes = self.race.notes.clone();
+        let quiet = if playing { 1.0 } else { 0.35 };
+        for n in &notes {
+            let pos = |i: usize| (self.race.racers[i].kart.x, self.race.racers[i].kart.y);
+            let (sfx, at) = match *n {
+                Note::Burst(x, y) => (Sfx::Pop, Some((x, y))),
+                Note::Got(i, _) if i == me => (Sfx::Ding, None),
+                Note::Used(i, item) => (
+                    match item {
+                        Item::Snowball => Sfx::Throw,
+                        Item::Present => Sfx::Lob,
+                        Item::Tinsel => Sfx::Zing,
+                        Item::Peppermint | Item::Mistletoe => Sfx::Chime,
+                    },
+                    if i == me { None } else { Some(pos(i)) },
+                ),
+                Note::Kiss(_, b) => (Sfx::Smooch, if b == me { None } else { Some(pos(b)) }),
+                Note::Hit(i, _) if i != me => (Sfx::Hit, Some(pos(i))),
+                Note::SantaComing => (Sfx::Horn, None),
+                Note::SantaCaught(i) => (Sfx::Whack, if i == me { None } else { Some(pos(i)) }),
+                Note::Finished(i) if i == me => (Sfx::Finish, None),
+                _ => continue,
+            };
+            let v = at.map_or(1.0, |(x, y)| self.near(x, y) * 0.7);
+            self.sounds.push((sfx, v * quiet));
+        }
         for n in notes {
             match n {
                 Note::Burst(x, y) => self.confetti(x, y),
@@ -613,6 +707,43 @@ impl Game {
         }
     }
 
+    /// The rides to hear (the player's, the nearest rivals, Santa), the
+    /// music, and whether Santa is after the player.
+    pub fn soundscape(&self) -> (Vec<audio::Ride>, Music, bool) {
+        let r = &self.race;
+        let me = self.me();
+        let (mx, my) = (r.racers[me].kart.x, r.racers[me].kart.y);
+        let voice = |ride: crate::model::Ride| match ride {
+            crate::model::Ride::Sleigh => audio::Voice::Sleigh,
+            crate::model::Ride::Reindeer => audio::Voice::Hooves,
+            crate::model::Ride::Snowmobile => audio::Voice::Motor,
+            crate::model::Ride::Toboggan => audio::Voice::Runners,
+            crate::model::Ride::Skis => audio::Voice::Skis,
+            crate::model::Ride::Plough => audio::Voice::Diesel,
+        };
+        let heard = |k: &crate::kart::Kart, ride, gain: f32| audio::Ride { voice: voice(ride), speed: if k.air { k.speed * 0.2 } else { k.speed }, gain };
+        let mut rides = vec![heard(&r.racers[me].kart, ROSTER[r.racers[me].who].ride, if self.phase == Phase::Race { 1.0 } else { 0.3 })];
+        let mut others: Vec<(f32, usize)> = (0..r.racers.len()).filter(|&i| i != me).map(|i| ((r.racers[i].kart.x - mx).hypot(r.racers[i].kart.y - my), i)).collect();
+        others.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for &(d, i) in others.iter().take(3) {
+            let g = (1.0 - d / 120.0).max(0.0).powi(2) * 0.6;
+            rides.push(heard(&r.racers[i].kart, ROSTER[r.racers[i].who].ride, g));
+        }
+        if r.santa.active {
+            let d = (r.santa.kart.x - mx).hypot(r.santa.kart.y - my);
+            rides.push(heard(&r.santa.kart, crate::model::Ride::Plough, (1.0 - d / 260.0).max(0.0).powi(2)));
+        }
+        let music = match self.phase {
+            Phase::Race if self.player_done() => Music::Menu,
+            Phase::Race if r.counting_down() => Music::Off,
+            Phase::Race if r.racers[me].lap == LAPS => Music::FinalLap,
+            Phase::Race => Music::Race,
+            _ => Music::Menu,
+        };
+        let chased = self.phase == Phase::Race && r.santa.active && r.santa.target == Some(me);
+        (rides, music, chased)
+    }
+
     pub fn snapshot(&self) {
         let r = &self.race;
         let me = self.me();
@@ -795,7 +926,7 @@ fn draw_help(buf: &mut Buffer, area: Rect, input: &Input) {
         "Start: hit the gas as the 1 appears for a rocket start.",
         "",
         "Pad: stick or d-pad steer, A gas, B brake, R drift, X/Y/L item",
-        "P pause   R restart   Esc back   H close this",
+        "P pause   R restart   Esc back   F8 sound   M music   H close this",
     ];
     if !input.exact {
         lines.insert(7, "(this terminal: Up latches gas on, Down off, Space toggles drift)");

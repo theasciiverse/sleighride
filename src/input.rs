@@ -63,6 +63,8 @@ pub enum Cmd {
     Right,
     Up,
     Down,
+    Mute,
+    Music,
 }
 
 #[cfg(feature = "gamepad")]
@@ -165,6 +167,8 @@ impl Input {
             KeyCode::Char('r' | 'R') => self.cmds.push(Cmd::Restart),
             KeyCode::Char('q' | 'Q') => self.cmds.push(Cmd::Back),
             KeyCode::F(1) | KeyCode::Char('h' | 'H' | '?') => self.cmds.push(Cmd::Help),
+            KeyCode::F(8) => self.cmds.push(Cmd::Mute),
+            KeyCode::Char('m' | 'M') => self.cmds.push(Cmd::Music),
             _ => {}
         }
     }

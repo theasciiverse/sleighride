@@ -114,7 +114,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 24 tests, including a full six-racer race on each course (winner to last
+- 27 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -186,7 +186,7 @@ boosts, bumps, start result) and a snapshot every 500 ms.
 - Drift: hold Space or Shift while steering
 - Item: X, E or Ctrl; brake + item drops a present behind you
 - Title screen: Left/Right picks the course
-- P pause, R restart, Esc back, H help
+- P pause, R restart, Esc back, H help, F8 sound on/off, M music on/off
 - Without the kitty keyboard protocol a terminal only repeats the last key
   held, so gas can't be held while steering: there Up latches the gas on,
   Down turns it off, and Space toggles a drift
@@ -231,9 +231,22 @@ A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
 
 David wants all of these (2026-10-06), roughly in this order:
 
-- [ ] Sound (rodio, synthesised, as in the sibling games): engine whine by
-      speed, sleigh bells, drift sparks, landing crunch, item sounds,
-      Santa's horn when he's after you, the clip, music
+- [x] Sound (2026-10-06, `audio.rs`, rodio, all synthesised): a band
+      plays the rides live by speed (sleigh bells and runner hiss,
+      galloping hoofbeats synced to the drawn stride, the snowmobile's
+      two-stroke, skis swishing, Santa's diesel getting louder as he
+      closes), the nearest three rivals by distance, and the music:
+      Jingle Bells (Pierpont, 1857) on the menus, Deck the Halls
+      (traditional) in the race, faster on the final lap, a low warning
+      bass while Santa is after you. Leroy Anderson's "Sleigh Ride" (1948)
+      is still under copyright and deliberately not used. 28 effects:
+      countdown, hop, spark tiers, boost, rocket start, stall, launch,
+      landing crunch, trick, bumps, tree, hits, throws, burst, tinsel,
+      peppermint, smooch, box ding, roulette tick, Santa's horn, the whack
+      and boing of the clip, lap bell, finish. `--mute`, F8 sound, M music.
+      **Needs David's ears:** levels and character were checked only by
+      tests (every effect and voice audible, peaks in range), not listened
+      to
 - [ ] Birds: crows lifting off the pines as you pass, a flock wheeling
       across the sky
 - [ ] Hills for Eggnogg: a big drop into the eggnog basin, a jump over a

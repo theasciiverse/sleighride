@@ -1,3 +1,4 @@
+mod audio;
 mod auto;
 mod game;
 mod input;
@@ -27,11 +28,12 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "sleighride [--race] [--course N] [--as NAME]\n\n\
+            "sleighride [--race] [--course N] [--as NAME] [--mute]\n\n\
              Sleighride: kart racing with Santa's runaway helpers. In game, H shows the controls.\n\
              --race                      skip the title screen\n\
              --course N                  1 Frozen Lake, 2 Eggnogg\n\
              --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper or Nutmeg\n\
+             --mute                      no sound (F8 toggles sound, M the music)\n\
              --shot FILE COLS ROWS SECS  write a PPM of the attract race after SECS\n\
              \x20                           (SECS ending in d: then wait for a gold drift)"
         );
@@ -74,6 +76,9 @@ fn main() -> io::Result<()> {
         std::fs::write(get(1), g.shot(cols, rows).ppm())?;
         return Ok(());
     }
+    // open audio before the alternate screen, so any ALSA chatter lands above it
+    let mut audio = audio::Audio::new(args.iter().any(|a| a == "--mute"));
+    log::info!("audio available {} muted {}", audio.available(), audio.muted);
     let mut terminal = ratatui::init();
     let kitty = supports_keyboard_enhancement().unwrap_or(false);
     if kitty {
@@ -84,7 +89,7 @@ fn main() -> io::Result<()> {
     let mut input = Input::new(kitty);
     input.open_pad();
     let mut game = Game::new(start, course, pick, 1);
-    let result = run(&mut terminal, &mut game, &mut input);
+    let result = run(&mut terminal, &mut game, &mut input, &mut audio);
     if kitty {
         let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);
     }
@@ -92,7 +97,7 @@ fn main() -> io::Result<()> {
     result
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, game: &mut Game, input: &mut Input) -> io::Result<()> {
+fn run(terminal: &mut ratatui::DefaultTerminal, game: &mut Game, input: &mut Input, audio: &mut audio::Audio) -> io::Result<()> {
     let mut last = Instant::now();
     let mut acc = 0.0f32;
     let mut snapshot = Instant::now();
@@ -119,6 +124,19 @@ fn run(terminal: &mut ratatui::DefaultTerminal, game: &mut Game, input: &mut Inp
                 return Ok(());
             }
         }
+        for c in std::mem::take(&mut game.audio_cmds) {
+            match c {
+                input::Cmd::Mute => audio.toggle_mute(),
+                input::Cmd::Music => audio.toggle_music(),
+                _ => {}
+            }
+            log::info!("audio muted {} music {}", audio.muted, audio.music_on);
+        }
+        for (sfx, volume) in std::mem::take(&mut game.sounds) {
+            audio.play(sfx, volume);
+        }
+        let (rides, music, chased) = game.soundscape();
+        audio.set(&rides, music, chased);
         terminal.draw(|f| game.draw(f, input))?;
         if snapshot.elapsed() >= SNAPSHOT_EVERY {
             snapshot = Instant::now();
