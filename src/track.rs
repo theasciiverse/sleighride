@@ -16,6 +16,8 @@ pub enum Surface {
     Bank,
     /// A slick patch on the road: hardly any grip.
     Ice,
+    /// A creamy inlet across the road: jump it, or wade through slowly.
+    Cream,
 }
 
 /// A course's colours.
@@ -99,6 +101,15 @@ pub struct Track {
     pub theme: Theme,
     /// Ice patches on the road: centre and radius.
     pub ice: Vec<(f32, f32, f32)>,
+    /// Inlets across the road: (first sample, length).
+    pub inlets: Vec<(usize, usize)>,
+    /// Kicker ramps on the road: (first sample, run).
+    pub kicks: Vec<(usize, usize)>,
+    /// Marker poles with pennants, either side of an inlet.
+    pub poles: Vec<(f32, f32)>,
+    /// The relief it was built from (read by the tests).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub relief: &'static Relief,
 }
 
 /// The lie of the land: heights along the lap as (fraction of the lap,
@@ -109,10 +120,41 @@ pub struct Relief {
     /// (fraction of the lap at the lip, rise, run-up in samples): the road
     /// ramps up by `rise` over the run-up and drops back at the lip.
     pub kickers: &'static [(f32, f32, usize)],
+    /// (fraction of the lap where it starts, length in samples): inlets of
+    /// the lake that cross the road, a little below it.
+    pub inlets: &'static [(f32, usize)],
     pub lake: f32,
 }
 
-const FLAT: Relief = Relief { keys: &[], kickers: &[], lake: 0.0 };
+#[cfg(test)]
+const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], lake: 0.0 };
+
+/// Eggnogg: up from the start to a high ridge in the north, a kicker off
+/// its edge down into the eggnog basin, rolling hills through the hairpins
+/// in the east, and on the south shore a kicker over a creamy inlet that
+/// crosses the road. Fall short and you wade.
+const EGGNOGG_RELIEF: Relief = Relief {
+    keys: &[
+        (0.0, 0.0),
+        (0.04, 0.0),
+        (0.12, 18.0),
+        (0.2, 18.0),
+        (0.27, -6.0),
+        (0.35, -2.0),
+        (0.42, 6.0),
+        (0.5, 2.0),
+        (0.58, 8.0),
+        (0.64, 4.0),
+        // a hill, then down toward the inlet so you see it coming
+        (0.705, 9.0),
+        (0.775, -3.0),
+        (0.81, -3.0),
+        (0.9, 2.0),
+    ],
+    kickers: &[(0.2, 3.5, 26), (0.775, 4.5, 22)],
+    inlets: &[(0.7765, 22)],
+    lake: -20.0,
+};
 
 /// Frozen Lake: the start straight climbs a ridge along the west shore to a
 /// kicker on the crest, rolls down the north bank, over the hills of the
@@ -136,6 +178,7 @@ const FROZEN_RELIEF: Relief = Relief {
         (0.9, -6.0),
     ],
     kickers: &[(0.125, 3.5, 26), (0.62, 3.5, 26)],
+    inlets: &[],
     lake: -26.0,
 };
 
@@ -242,8 +285,17 @@ fn smooth(t: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-/// Height of the road at each of `n` samples round the lap.
+/// Height of the road at each of `n` samples round the lap, kickers
+/// included.
+#[cfg(test)]
 fn road_profile(r: &Relief, n: usize) -> Vec<f32> {
+    let (base, kick) = lie_of_land(r, n);
+    base.iter().zip(&kick).map(|(a, b)| a + b).collect()
+}
+
+/// The land's height along the lap, and the kicker ramps built on the road
+/// on top of it (the snow beside a ramp stays at the land's height).
+fn lie_of_land(r: &Relief, n: usize) -> (Vec<f32>, Vec<f32>) {
     let mut p = vec![0.0; n];
     if !r.keys.is_empty() {
         for (i, h) in p.iter_mut().enumerate() {
@@ -255,14 +307,24 @@ fn road_profile(r: &Relief, n: usize) -> Vec<f32> {
             *h = a.1 + (b.1 - a.1) * smooth((f - a.0) / span);
         }
     }
+    for &(f, len) in r.inlets {
+        let s0 = (f * n as f32) as usize;
+        for j in 0..len {
+            // cream to the brim: just a touch below the land, so it shows
+            // from far off as a flat strip rather than hiding in a hollow
+            let k = (j as f32 + 0.5) / len as f32;
+            p[(s0 + j) % n] -= 0.5 * (k * std::f32::consts::PI).sin();
+        }
+    }
+    let mut kick = vec![0.0; n];
     for &(lip, rise, run) in r.kickers {
         let l = (lip * n as f32) as usize;
         for j in 0..run {
             let i = (l + n - run + j) % n;
-            p[i] += rise * (j + 1) as f32 / run as f32;
+            kick[i] += rise * (j + 1) as f32 / run as f32;
         }
     }
-    p
+    (p, kick)
 }
 
 fn value_noise(x: f32, y: f32) -> f32 {
@@ -279,7 +341,7 @@ fn value_noise(x: f32, y: f32) -> f32 {
 /// drifts, then down to the lake. Off the road it is smoothed so that where
 /// two stretches of course meet at different heights the land between rolls
 /// rather than steps.
-fn ground_heights(cells: &[Cell], profile: &[f32], lake: f32, half: f32) -> Vec<f32> {
+fn ground_heights(cells: &[Cell], profile: &[f32], kick: &[f32], lake: f32, half: f32) -> Vec<f32> {
     let bank = BANK_FROM.max(half + 4.0);
     let shoulder = |d: f32| (d - half - 2.5).max(0.0) * 0.1;
     let mut g = vec![lake; MAP * MAP];
@@ -292,7 +354,7 @@ fn ground_heights(cells: &[Cell], profile: &[f32], lake: f32, half: f32) -> Vec<
             let (d, base) = (c.dist, profile[c.idx as usize]);
             let edge = base + shoulder(bank);
             g[y * MAP + x] = if d <= half + 2.5 {
-                base
+                base + kick[c.idx as usize]
             } else if d <= bank {
                 let drift = value_noise(x as f32 / 11.0, y as f32 / 11.0) - 0.5;
                 base + shoulder(d) + drift * 2.4 * ((d - half - 2.5) / 10.0).min(1.0) * ((bank - d) / 6.0).min(1.0)
@@ -339,7 +401,7 @@ impl Track {
     }
 
     pub fn eggnogg() -> Track {
-        let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &FLAT);
+        let mut t = Track::build("Eggnogg", EGGNOGG_PTS, 13.0, EGGNOGG, &EGGNOGG_RELIEF);
         t.add_ice(&[(0.17, 3.0, 6.0), (0.45, -4.0, 7.0), (0.58, 5.0, 6.0), (0.86, 0.0, 8.0)]);
         t
     }
@@ -368,7 +430,7 @@ impl Track {
         Track::build("Ring", &ctrl, half, FROZEN, &FLAT)
     }
 
-    fn build(name: &'static str, ctrl: &[(f32, f32)], half: f32, theme: Theme, relief: &Relief) -> Track {
+    fn build(name: &'static str, ctrl: &[(f32, f32)], half: f32, theme: Theme, relief: &'static Relief) -> Track {
         let pts = resample(ctrl, 1.0);
         // how far around each sample the map is filled in
         let reach = BANK_FROM.max(half + 4.0) as i32 + 16;
@@ -395,9 +457,21 @@ impl Track {
                 (dx / l, dy / l)
             })
             .collect();
-        let profile = road_profile(relief, n);
-        let ground = ground_heights(&cells, &profile, relief.lake, half);
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new() };
+        let (land, kick) = lie_of_land(relief, n);
+        let ground = ground_heights(&cells, &land, &kick, relief.lake, half);
+        let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
+        let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), relief };
+        let inlets: Vec<(usize, usize)> = t.inlets.clone();
+        for (s0, len) in inlets {
+            for i in [(s0 + n - 3) % n, (s0 + len + 2) % n] {
+                let (px, py) = t.pts[i];
+                let (tx, ty) = t.tangents[i];
+                for side in [-(half + 4.0), half + 4.0] {
+                    t.poles.push((px - ty * side, py + tx * side));
+                }
+            }
+        }
         // pines on a jittered grid, in the powder between kerb and bank
         let grid = 9;
         for gy in 0..(MAP as i32 / grid) {
@@ -460,9 +534,26 @@ impl Track {
         self.cell(x, y).filter(|c| c.dist.is_finite()).map(|c| c.idx as usize)
     }
 
+    /// Whether sample `i` is on a kicker ramp, and how far up it (0..1).
+    pub fn on_kick(&self, i: usize) -> Option<f32> {
+        let n = self.len();
+        self.kicks.iter().find_map(|&(s, run)| {
+            let k = (i + n - s) % n;
+            (k < run).then(|| k as f32 / run as f32)
+        })
+    }
+
+    /// Whether sample `i` is where an inlet crosses the road.
+    pub fn in_inlet(&self, i: usize) -> bool {
+        let n = self.len();
+        self.inlets.iter().any(|&(s, len)| (i + n - s) % n < len)
+    }
+
     pub fn surface(&self, x: f32, y: f32) -> Surface {
         let d = self.dist(x, y);
-        if d <= self.half {
+        if d <= BANK_FROM && !self.inlets.is_empty() && self.idx(x, y).is_some_and(|i| self.in_inlet(i)) {
+            Surface::Cream
+        } else if d <= self.half {
             if self.on_ice(x, y) {
                 Surface::Ice
             } else {
@@ -531,7 +622,7 @@ mod tests {
         for (name, make) in courses() {
         let t = make();
         for (i, &(x, y)) in t.pts.iter().enumerate() {
-            assert!(matches!(t.surface(x, y), Surface::Road | Surface::Ice), "{name} sample {i}");
+            assert!(matches!(t.surface(x, y), Surface::Road | Surface::Ice | Surface::Cream), "{name} sample {i}");
             // the course never runs close to itself (nearest sample is local)
             let near = t.idx(x, y).unwrap();
             let gap = (near as isize - i as isize).rem_euclid(t.len() as isize).min((i as isize - near as isize).rem_euclid(t.len() as isize));
@@ -543,27 +634,44 @@ mod tests {
 
     #[test]
     fn the_road_climbs_smoothly_except_at_the_kicker_lips() {
-        let t = Track::frozen_lake();
+        for (name, make) in courses() {
+        let t = make();
         let n = t.len();
-        let profile = road_profile(&FROZEN_RELIEF, n);
-        let lips: Vec<usize> = FROZEN_RELIEF.kickers.iter().map(|k| (k.0 * n as f32) as usize).collect();
+        let profile = road_profile(t.relief, n);
+        let lips: Vec<usize> = t.relief.kickers.iter().map(|k| (k.0 * n as f32) as usize).collect();
         let (lo, hi) = profile.iter().fold((f32::MAX, f32::MIN), |(a, b), &h| (a.min(h), b.max(h)));
-        assert!(hi - lo > 30.0, "hills: {lo}..{hi}");
+        assert!(hi - lo > 20.0, "{name} hills: {lo}..{hi}");
         for i in 0..n {
             let step = profile[(i + 1) % n] - profile[i];
             let at_lip = lips.iter().any(|&l| (i + 1) % n == l || i == l);
-            if !at_lip {
-                assert!(step.abs() < 0.3, "step {step} at {i}");
+            // the inlet is a channel cut into the road on purpose
+            let at_inlet = t.inlets.iter().any(|&(s0, len)| ((i + n + 2 - s0) % n) < len + 4);
+            if !at_lip && !at_inlet {
+                assert!(step.abs() < 0.3, "{name}: step {step} at {i}");
             }
             // the ground under the centreline is the road height (beside a
             // lip the lookup blends the top of the ramp with the drop)
             let (x, y) = t.pts[i];
             let near_lip = lips.iter().any(|&l| (i as isize - l as isize).abs() <= 2);
-            assert!(near_lip || (t.height(x, y) - profile[i]).abs() < 0.6, "at {i}: {} vs {}", t.height(x, y), profile[i]);
+            assert!(near_lip || (t.height(x, y) - profile[i]).abs() < 0.6, "{name} at {i}: {} vs {}", t.height(x, y), profile[i]);
         }
         for &l in &lips {
-            assert!(profile[l - 1] - profile[l] > 2.5, "a drop at the lip {l}");
+            assert!(profile[l - 1] - profile[l] > 2.5, "{name}: a drop at the lip {l}");
         }
+        }
+    }
+
+    #[test]
+    fn eggnoggs_inlet_crosses_the_road_just_past_a_kicker() {
+        let t = Track::eggnogg();
+        let n = t.len();
+        let (s0, len) = t.inlets[0];
+        let lip = (0.775 * n as f32) as usize;
+        assert!(s0 > lip && s0 - lip < 6, "the cream starts just past the lip");
+        let (x, y) = t.pts[(s0 + len / 2) % n];
+        assert_eq!(t.surface(x, y), Surface::Cream);
+        let (x, y) = t.pts[(s0 + len + 5) % n];
+        assert_eq!(t.surface(x, y), Surface::Road);
     }
 
     #[test]
@@ -573,5 +681,8 @@ mod tests {
         for tr in &t.trees {
             assert!(t.dist(tr.x, tr.y) > t.half + 8.0);
         }
+        let e = Track::eggnogg();
+        assert_eq!(e.poles.len(), 4, "a pole each side, before and after the inlet");
+        assert_eq!(e.kicks.len(), 2);
     }
 }

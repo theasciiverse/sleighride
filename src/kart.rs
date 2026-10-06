@@ -11,7 +11,8 @@
 //!   charging. Snowbanks bounce you back, pines stop you dead.
 //! - Rocket start: the time the gas has been held when the lights go is
 //!   judged. Hit the gas as the 1 appears.
-//! - Hills: downhill is faster, uphill slower. Where the ground falls away
+//! - Hills: downhill is faster, uphill slower, by the same share for every
+//!   ride. Where the ground falls away
 //!   faster than the sleigh can drop (a crest, the lip of a kicker) it takes
 //!   off; in the air there is no grip, gas or drift charge. Tap drift in the
 //!   air for a trick, and land it for a boost.
@@ -28,8 +29,8 @@ const TIER_BOOST: [f32; 4] = [0.0, 0.45, 0.95, 1.6];
 const KART_R: f32 = 1.6;
 /// Gravity, units per second squared.
 pub const GRAVITY: f32 = 50.0;
-/// How hard a slope pulls on speed.
-const SLOPE_PULL: f32 = 45.0;
+/// How much a slope changes top speed: share per unit of rise per run.
+const SLOPE_SHARE: f32 = 1.6;
 const TREE_R: f32 = 1.4;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -258,7 +259,8 @@ impl Kart {
     fn drive(&mut self, c: Controls, track: &Track) {
         let st = self.stats;
         self.surface = track.surface(self.x, self.y);
-        let powder = self.surface == Surface::Powder;
+        // deep powder and wading through cream: slow, and no sparks
+        let powder = matches!(self.surface, Surface::Powder | Surface::Cream);
         self.boost = (self.boost - DT).max(0.0);
         self.hop = (self.hop - DT).max(0.0);
         self.knock = (self.knock - DT).max(0.0);
@@ -284,6 +286,10 @@ impl Kart {
         if boosting {
             top *= 1.32;
         }
+        // a climb lowers everyone's top speed by the same share, a descent
+        // raises it; how quickly you settle to it is your acceleration
+        let slope = if self.air { 0.0 } else { track.slope(self.x, self.y, self.travel) * self.speed.signum().max(0.0) };
+        top *= (1.0 - SLOPE_SHARE * slope).clamp(0.7, 1.3);
         if self.air {
             // no grip in the air: only a little drag
             self.speed -= self.speed * 0.05 * DT;
@@ -301,10 +307,6 @@ impl Kart {
         } else {
             let drag = if powder { 30.0 } else { 9.0 };
             self.speed -= self.speed.signum() * (drag * DT).min(self.speed.abs());
-        }
-        if !self.air {
-            // downhill pulls you on, uphill holds you back
-            self.speed -= SLOPE_PULL * track.slope(self.x, self.y, self.travel) * DT * self.speed.signum().max(0.0);
         }
         if self.speed > top && !self.air {
             // let go of speed above the cap gently, faster in powder

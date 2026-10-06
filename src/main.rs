@@ -51,9 +51,11 @@ fn main() -> io::Result<()> {
         // ...or ending in "a": wait for the racer to be in the air
         let wait_drift = secs_arg.ends_with('d');
         let wait_air = secs_arg.ends_with('a');
-        // ...or "c": wait for Santa to have just caught the racer
+        // ...or "c": wait for Santa to have just caught the racer; "i": for
+        // the racer to be just short of an inlet
         let wait_clip = secs_arg.ends_with('c');
-        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c']).parse().unwrap_or(10.0));
+        let wait_inlet = secs_arg.ends_with('i');
+        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
@@ -70,6 +72,13 @@ fn main() -> io::Result<()> {
         }
         while wait_air && !(g.race.racers[me].kart.air && g.race.racers[me].kart.vz < 2.0) && g.race.clock < 600.0 {
             g.run_auto(DT);
+        }
+ while wait_inlet && g.race.clock < 600.0 && !g.race.track.inlets.iter().any(|&(s0, _)| (s0 + g.race.track.len() - g.race.racers[me].idx) % g.race.track.len() < std::env::var("SLEIGHRIDE_INLET_AHEAD").ok().and_then(|v| v.parse().ok()).unwrap_or(45)) {
+            g.run_auto(DT);
+        }
+        if std::env::var("SLEIGHRIDE_SHOT_DEBUG").is_ok() {
+            let r = &g.race.racers[me];
+            eprintln!("shot at clock {:.2}: racer {} idx {} lap {} pos ({:.0},{:.0}) z {:.1}", g.race.clock, me, r.idx, r.lap, r.kart.x, r.kart.y, r.kart.z);
         }
         while wait_clip && !(g.race.racers[me].clipped > 0.0 && g.race.racers[me].clipped < race::CLIP_TIME - 0.2) && g.race.clock < 600.0 {
             g.run_auto(DT);

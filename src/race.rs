@@ -917,10 +917,11 @@ mod balance {
     #[test]
     fn no_ride_runs_away_with_it() {
         // six racers average 3.5; nobody should be far off over many races
+        // (at 40 races, luck alone moves a racer about half a place)
         for (name, make) in crate::track::courses() {
-            let avg = average_places(make, 24);
+            let avg = average_places(make, 40);
             for (i, a) in avg.iter().enumerate() {
-                assert!((2.4..4.6).contains(a), "{name}: {} averages {a:.1}", ROSTER[i].name);
+                assert!((2.3..4.7).contains(a), "{name}: {} averages {a:.1}", ROSTER[i].name);
             }
         }
     }

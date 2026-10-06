@@ -24,9 +24,9 @@ const SLEIGH: Stats = Stats { top: 63.9, accel: 1.2, turn: 2.0, grip: 9.0, charg
 /// Quick off the mark and nimble, a little lower on top speed, light.
 const REINDEER: Stats = Stats { top: 63.9, accel: 1.4, turn: 2.2, grip: 10.0, charge: 1.05, weight: 0.8 };
 /// Fast but heavy, a wide line and slow to charge a drift.
-const SNOWMOBILE: Stats = Stats { top: 64.2, accel: 1.0, turn: 1.8, grip: 7.5, charge: 0.95, weight: 1.25 };
+const SNOWMOBILE: Stats = Stats { top: 64.2, accel: 1.1, turn: 1.95, grip: 8.2, charge: 0.95, weight: 1.25 };
 /// Low and slippery: fast, light, charges drifts quickly.
-const TOBOGGAN: Stats = Stats { top: 63.2, accel: 1.2, turn: 1.9, grip: 8.0, charge: 1.1, weight: 0.7 };
+const TOBOGGAN: Stats = Stats { top: 63.7, accel: 1.2, turn: 2.0, grip: 8.0, charge: 1.1, weight: 0.7 };
 /// Narrow and twitchy: the highest top speed, turns sharply, grips little.
 const SKIS: Stats = Stats { top: 64.9, accel: 1.1, turn: 2.3, grip: 6.5, charge: 1.0, weight: 0.6 };
 /// Santa: much faster than anyone, and nothing moves him.

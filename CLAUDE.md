@@ -114,7 +114,7 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
   gamepad; session logging per the Asciiverse convention
-- 29 tests, including a full six-racer race on each course (winner to last
+- 30 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -174,6 +174,7 @@ cargo run --release -- --shot out.ppm 160 45 12    # screenshot of the title scr
 cargo run --release -- --race --shot out.ppm 160 45 30   # a race, everyone on autopilot
 cargo run --release -- --shot out.ppm 160 45 5d    # ... at the first gold-spark drift after 5 s
 cargo run --release -- --race --shot out.ppm 160 45 5a   # ... at the first jump after 5 s
+cargo run --release -- --race --course 2 --shot out.ppm 160 45 10i   # ... just short of an inlet
 ```
 
 Use `RUST_LOG=sleighride=debug` rather than plain `debug`: gilrs is chatty.
@@ -258,10 +259,24 @@ David wants all of these (2026-10-06), roughly in this order:
       The flock flies in the camera's frame (far, high birds seem to keep
       pace), pale against Frozen Lake's night, dark against Eggnogg's
       sunset (`Theme::birds`)
-- [ ] Hills for Eggnogg: a big drop into the eggnog basin, a jump over a
-      creamy inlet
+- [x] Hills for Eggnogg (2026-10-06): up to a ridge in the north, a
+      kicker off its edge down into the eggnog basin (lake at -20),
+      rolling hairpins, then down off a hill to a kicker over a creamy
+      inlet crossing the road (`Relief::inlets`, `Surface::Cream`: slow as
+      powder, no sparks); fall short and you wade. Kickers are now ramps
+      built on the road only (the snow beside stays at the land's height),
+      painted as pale wooden planks with yellow-and-black chevrons at the
+      lip; striped poles with pennants flag the inlet. Lessons: a hollow
+      seen from a chase camera hides until you're on it, so the inlet is
+      nearly flush and approached downhill. Slopes now change everyone's
+      top speed by the same share (they used to favour quick
+      accelerators); the snowmobile and toboggan got a little more turn,
+      the snowmobile more accel and grip, so every ride still averages
+      3rd to 4th on both courses
 - [ ] Many more courses (and a track format instead of control points in
-      code)
+      code). David's ideas: **Thin Ice**, run partly or wholly out on a
+      frozen lake, with holes in the ice to steer round (fall in: a
+      splash and a slow, shivering climb out)
 - [ ] Weather: blizzards (shorter sight, driving snow, gusts), snow
       tornadoes that wander and spin you out
 - [ ] Wildlife: a penguin line crossing the road, a polar bear that

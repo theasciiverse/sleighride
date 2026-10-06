@@ -257,11 +257,31 @@ fn ground_colour(track: &Track, x: f32, y: f32) -> Rgb {
     let half = track.half;
     let bank = track.bank_from();
     let fine = ((hash(x.floor() as i32, y.floor() as i32) & 0xff) as i32 - 128) / 24;
+    if !track.inlets.is_empty() && track.in_inlet(i) {
+        // the inlet: an arm of the lake's cream cutting right across, out
+        // over the powder on both sides so you see it coming past the ramp
+        let swirl = noise(x / 4.0 + y / 9.0, y / 4.0 - x / 9.0);
+        let mut c = mix(th.lake[0], th.lake[1], swirl);
+        if hash(x as i32, y as i32) % 29 == 0 {
+            c = mix(c, th.lake[2], 0.7);
+        }
+        return c;
+    }
     if d <= half {
         // the start line: a checker across the road
         if i < 3 || i > track.len() - 1 {
             let k = ((x * 0.5).floor() as i32 + (y * 0.5).floor() as i32) & 1;
             return if k == 0 { (24, 24, 32) } else { (240, 240, 245) };
+        }
+        if let Some(up) = track.on_kick(i) {
+            // a wooden ramp, with warning chevrons at the lip
+            let plank = ((up * 22.0) as i32 % 2 == 0) as i32 as f32;
+            let mut c = mix((206, 162, 112), (184, 140, 94), plank);
+            if up > 0.8 {
+                let chevron = ((side.abs() * 0.6 + up * 30.0) as i32) % 2 == 0;
+                c = if chevron { (240, 196, 50) } else { (40, 34, 40) };
+            }
+            return shade(c, fine);
         }
         if track.on_ice(x, y) {
             // glassy, with long streaks that catch the light
@@ -747,6 +767,7 @@ enum Thing {
     Trap,
     Crow(usize),
     Flyer(usize),
+    Pole,
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
@@ -791,6 +812,9 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     }
     for t in &r.traps {
         things.push((depth(t.x, t.y), t.x, t.y, Thing::Trap));
+    }
+    for &(px, py) in &r.track.poles {
+        things.push((depth(px, py), px, py, Thing::Pole));
     }
     for (i, c) in s.birds.crows.iter().enumerate() {
         if !matches!(c.state, crate::birds::Perch::Away(_)) {
@@ -863,6 +887,25 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                             pose.nose = s.time * 7.0;
                             m.draw(cv, &pose);
                         }
+                    }
+                }
+            }
+            Thing::Pole => {
+                // a striped pole with a pennant snapping in the wind
+                let h = (6.0 * scale) as i32;
+                let w = (scale * 0.25).max(1.0) as i32;
+                for k in 0..h {
+                    let c = if (k * 6 / h.max(1)) % 2 == 0 { (220, 40, 50) } else { (245, 245, 250) };
+                    for q in 0..w {
+                        cv.put(sx as i32 + q, sy as i32 - k, mix(c, haze, fog));
+                    }
+                }
+                let flap = (s.time * 8.0 + x).sin() * 0.3;
+                let len = (2.2 * scale) as i32;
+                for k in 0..len {
+                    let thick = ((len - k) as f32 / len as f32 * scale * 0.7) as i32;
+                    for q in 0..thick.max(1) {
+                        cv.put(sx as i32 + w + k, sy as i32 - h + q + (flap * k as f32) as i32, mix((250, 206, 60), haze, fog));
                     }
                 }
             }
@@ -1085,5 +1128,6 @@ pub fn surface_name(s: Surface) -> &'static str {
         Surface::Powder => "powder",
         Surface::Bank => "bank",
         Surface::Ice => "ice",
+        Surface::Cream => "cream",
     }
 }
