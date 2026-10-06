@@ -5,10 +5,12 @@
 //! drifts the long bends, starts on the 1 give or take its nerves, and
 //! uses items when they're likely to do something.
 
+use serde::{Deserialize, Serialize};
+
 use crate::kart::Controls;
 use crate::race::{Item, Race, COUNTDOWN};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Ai {
     /// Preferred distance right of the centreline.
     pub offset: f32,

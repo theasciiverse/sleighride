@@ -17,6 +17,8 @@
 //!   off; in the air there is no grip, gas or drift charge. Tap drift in the
 //!   air for a trick, and land it for a boost.
 
+use serde::{Deserialize, Serialize};
+
 use crate::track::{Surface, Track};
 
 pub const DT: f32 = 1.0 / 60.0;
@@ -33,7 +35,7 @@ pub const GRAVITY: f32 = 50.0;
 const SLOPE_SHARE: f32 = 1.6;
 const TREE_R: f32 = 1.4;
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Controls {
     /// -1 full left .. 1 full right.
     pub steer: f32,
@@ -44,7 +46,7 @@ pub struct Controls {
     pub item: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Stats {
     pub top: f32,
     pub accel: f32,
@@ -57,7 +59,7 @@ pub struct Stats {
     pub weight: f32,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Event {
     Hop,
     Tier(u8),
@@ -76,7 +78,7 @@ pub enum Event {
     Splash,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Kart {
     pub x: f32,
     pub y: f32,

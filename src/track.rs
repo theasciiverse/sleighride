@@ -4,11 +4,13 @@
 //!
 //! World units are about half a metre. The map is MAP x MAP units.
 
+use serde::{Deserialize, Serialize};
+
 pub const MAP: usize = 1024;
 /// Beyond this distance from the centreline the snowbanks start.
 const BANK_FROM: f32 = 40.0;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Surface {
     Road,
     Kerb,

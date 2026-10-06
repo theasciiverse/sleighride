@@ -7,6 +7,8 @@
 //! - A snow tornado drifts against the race and weaves across the road.
 //!   Touch it and you're thrown into the air, spinning.
 
+use serde::{Deserialize, Serialize};
+
 use crate::track::Track;
 
 /// The first calm is short, so a race sees a blizzard early on.
@@ -16,7 +18,7 @@ const BUILD: f32 = 6.0;
 const PUSH: f32 = 5.0;
 pub const TWISTER_R: f32 = 3.6;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 enum Spell {
     Calm(f32),
     Building(f32),
@@ -24,7 +26,7 @@ enum Spell {
     Easing(f32),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Twister {
     pub x: f32,
     pub y: f32,
@@ -35,6 +37,7 @@ pub struct Twister {
     pub spin: f32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Weather {
     /// 0 calm .. 1 full blizzard.
     pub blizzard: f32,

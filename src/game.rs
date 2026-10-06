@@ -7,6 +7,7 @@
 
 use crate::audio::{self, Music, Sfx};
 use crate::input::{Cmd, Input};
+use crate::netplay::{Heard, Link};
 use crate::kart::{Controls, Event, DT};
 use crate::model::{Model, Pose, FRAMES};
 use crate::race::{Item, Note, Race, COUNTDOWN, ITEMS, LAPS};
@@ -61,6 +62,8 @@ pub struct Game {
     pub pick: usize,
     /// Index into DIFFICULTY.
     pub level: usize,
+    /// Racing with others over the network: hosting, joined, or looking.
+    pub link: Option<Box<Link>>,
     /// The story has been shown this run; and which page is up.
     story_seen: bool,
     page: usize,
@@ -105,12 +108,19 @@ fn ordinal(n: u8) -> String {
 
 impl Game {
     pub fn new(phase: Phase, course: usize, pick: usize, level: usize) -> Game {
+        Game::build(phase, course, pick, level, &[pick])
+    }
+
+    /// A game whose race (if `phase` is Race) has `humans` driven by
+    /// people; menus run an all-autopilot race behind them.
+    fn build(phase: Phase, course: usize, pick: usize, level: usize, humans: &[usize]) -> Game {
         let seed = 0x5EED ^ (course as u32 + 1) * 7919;
-        let mut race = Race::new((courses()[course].1)(), (phase == Phase::Race).then_some(pick), seed);
+        let humans: &[usize] = if phase == Phase::Race { humans } else { &[] };
+        let mut race = Race::with_humans((courses()[course].1)(), humans, seed);
         race.rival_pace = DIFFICULTY[level].1;
         let cam = Camera::behind(&race.racers[pick].kart);
         let birds = crate::birds::Birds::new(&race.track);
-        let mut g = Game { phase, course, pick, level, story_seen: false, page: 0, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, birds, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
+        let mut g = Game { phase, course, pick, level, link: None, story_seen: false, page: 0, sounds: Vec::new(), audio_cmds: Vec::new(), last_count: 4, last_laps: 0, birds, race, cam, particles: Vec::new(), paused: false, help: false, exit: false, flash: None, t: 0.0, seed: seed | 1 };
         if phase != Phase::Race {
             // start the attract race already under way
             for _ in 0..(8.0 / DT) as usize {
@@ -123,14 +133,38 @@ impl Game {
 
     fn switch(&mut self, p: Phase, course: usize, input: &mut Input) {
         log::info!("phase {:?} -> {p:?} on {} as {}, {}", self.phase, courses()[course].0, ROSTER[self.pick].name, DIFFICULTY[self.level].0);
+        let mut link = self.link.take();
+        let humans = match link.as_deref_mut() {
+            Some(Link::Host(h)) => {
+                if p == Phase::Race {
+                    h.race_no += 1;
+                }
+                h.humans(self.pick)
+            }
+            _ => vec![self.pick],
+        };
+        self.rebuild(p, course, self.pick, &humans, link);
+        input.clear();
+    }
+
+    /// A fresh game in phase `p`, keeping what lasts across screens.
+    fn rebuild(&mut self, p: Phase, course: usize, pick: usize, humans: &[usize], link: Option<Box<Link>>) {
         let seen = self.story_seen;
         let sounds = std::mem::take(&mut self.sounds);
         let audio_cmds = std::mem::take(&mut self.audio_cmds);
-        *self = Game::new(p, course, self.pick, self.level);
+        *self = Game::build(p, course, pick, self.level, humans);
         self.story_seen = seen;
         self.sounds = sounds;
         self.audio_cmds = audio_cmds;
-        input.clear();
+        self.link = link;
+    }
+
+    fn hosting(&self) -> bool {
+        matches!(self.link.as_deref(), Some(Link::Host(_)))
+    }
+
+    fn guesting(&self) -> bool {
+        matches!(self.link.as_deref(), Some(Link::Guest(_)))
     }
 
     /// Between the title and the racer choice: same race behind, new screen.
@@ -149,14 +183,29 @@ impl Game {
 
     /// The racer the camera follows: the player, or their pick on the menus.
     fn me(&self) -> usize {
-        self.race.player().unwrap_or(self.pick)
+        // racers are in roster order, so a racer's index is who it is
+        self.pick
     }
 
     pub fn tick(&mut self, input: &mut Input) {
+        if self.link.is_some() && self.net_tick(input) {
+            return;
+        }
         let cmds = std::mem::take(&mut input.cmds);
         let n = courses().len();
+        let (hosting, guesting) = (self.hosting(), self.guesting());
         for c in cmds {
             log::debug!("cmd {c:?}");
+            // a guest picks a racer; the host decides the rest
+            if guesting {
+                match (self.phase, c) {
+                    (Phase::Title, Cmd::Left | Cmd::Right | Cmd::Up | Cmd::Down) | (Phase::Select, Cmd::Confirm) | (Phase::Race, Cmd::Pause | Cmd::Restart | Cmd::Back | Cmd::Confirm) => continue,
+                    _ => {}
+                }
+            }
+            if hosting && matches!((self.phase, c), (Phase::Race, Cmd::Pause)) {
+                continue;
+            }
             if self.phase != Phase::Race && matches!(c, Cmd::Left | Cmd::Right | Cmd::Up | Cmd::Down | Cmd::Confirm) {
                 self.sounds.push((Sfx::Click, 0.8));
             }
@@ -189,8 +238,14 @@ impl Game {
                 (Phase::Title, Cmd::Back) => self.exit = true,
                 (Phase::Select, Cmd::Confirm) => return self.switch(Phase::Race, self.course, input),
                 (Phase::Select, Cmd::Back) => self.screen(Phase::Title),
-                (Phase::Select, Cmd::Left) => self.pick = (self.pick + ROSTER.len() - 1) % ROSTER.len(),
-                (Phase::Select, Cmd::Right) => self.pick = (self.pick + 1) % ROSTER.len(),
+                (Phase::Select, Cmd::Left) => {
+                    self.pick = (self.pick + ROSTER.len() - 1) % ROSTER.len();
+                    self.send_pick();
+                }
+                (Phase::Select, Cmd::Right) => {
+                    self.pick = (self.pick + 1) % ROSTER.len();
+                    self.send_pick();
+                }
                 (Phase::Title, Cmd::Left) => return self.switch(Phase::Title, (self.course + n - 1) % n, input),
                 (Phase::Title, Cmd::Right) => return self.switch(Phase::Title, (self.course + 1) % n, input),
                 (Phase::Title, Cmd::Up) => self.level = (self.level + 1).min(DIFFICULTY.len() - 1),
@@ -208,22 +263,163 @@ impl Game {
             return;
         }
         let c = if self.phase == Phase::Race { input.controls(Instant::now()) } else { Controls::default() };
-        self.step_race(c);
+        if self.phase == Phase::Race && self.hosting() {
+            let (pick, course, level) = (self.pick, self.course, self.level);
+            let inputs = match self.link.as_deref() {
+                Some(Link::Host(h)) => h.inputs((pick, c)),
+                _ => vec![(pick, c)],
+            };
+            self.step_with(&inputs);
+            let snap = self.race.snapshot();
+            if let Some(Link::Host(h)) = self.link.as_deref_mut() {
+                h.used_inputs();
+                h.send_frame(snap);
+                let lobby = h.lobby(course, level, pick, true);
+                h.send_lobby(DT, lobby);
+            }
+        } else {
+            self.step_race(c);
+        }
+    }
+
+    fn send_pick(&mut self) {
+        let pick = self.pick;
+        if let Some(Link::Guest(g)) = self.link.as_deref_mut() {
+            g.send_pick(pick);
+        }
+    }
+
+    /// Network work for this tick. True when it has handled the tick (a
+    /// guest in a race only shows what the host sends).
+    fn net_tick(&mut self, input: &mut Input) -> bool {
+        let racing = self.phase == Phase::Race;
+        let (pick, course, level) = (self.pick, self.course, self.level);
+        let mut link = self.link.take().unwrap();
+        let mut handled = false;
+        #[allow(clippy::type_complexity)]
+        let mut guest_frames: Option<(bool, Vec<(u32, Box<crate::race::Snap>)>, Option<crate::proto::Lobby>, Option<usize>)> = None;
+        match link.as_mut() {
+            Link::Host(h) => {
+                for who in h.poll(pick, racing) {
+                    if racing {
+                        crate::netplay::hand_to_ai(&mut self.race, who, self.seed);
+                    }
+                }
+                if !racing {
+                    let lobby = h.lobby(course, level, pick, false);
+                    h.send_lobby(DT, lobby);
+                }
+            }
+            Link::Browse(b) => {
+                b.refresh();
+                if self.phase == Phase::Title && input.cmds.contains(&Cmd::Confirm) {
+                    if let Some(f) = b.found.first() {
+                        log::info!("joining {} at {}", f.beacon.name, f.from);
+                        let name = b.name.clone();
+                        *link = Link::join(f.addr(), name);
+                        input.cmds.retain(|c| *c != Cmd::Confirm);
+                    }
+                }
+            }
+            Link::Guest(g) => {
+                g.keep_alive(DT);
+                if g.gone {
+                    // back to racing alone
+                    log::info!("left the network game: {}", g.status);
+                    let status = g.status.clone();
+                    self.link = None;
+                    self.rebuild(Phase::Title, course, pick, &[pick], None);
+                    self.flash = Some((status.to_uppercase(), 2.0, (240, 120, 110)));
+                    return true;
+                }
+                let heard = g.poll();
+                if racing {
+                    let c = input.controls(Instant::now());
+                    g.send_input(c);
+                }
+                let mut frames = Vec::new();
+                for h in heard {
+                    match h {
+                        Heard::Lobby(l) => {
+                            self.course = l.course.min(courses().len() - 1);
+                            self.level = l.level;
+                        }
+                        Heard::Frame(no, snap) => frames.push((no, snap)),
+                    }
+                }
+                let my = g.my_pick();
+                let lobby = g.lobby.clone();
+                if let Some(&(no, _)) = frames.first() {
+                    let start = (!racing || g.race_no != no) && lobby.is_some() && my.is_some();
+                    if start {
+                        g.race_no = no;
+                    }
+                    guest_frames = Some((start, frames, lobby, my));
+                } else if racing {
+                    handled = true;
+                }
+                if racing {
+                    // menus and the like still work while racing as a guest
+                    let cmds: Vec<Cmd> = input.cmds.drain(..).collect();
+                    for c in cmds {
+                        match c {
+                            Cmd::Exit => self.exit = true,
+                            Cmd::Help => self.help = !self.help,
+                            Cmd::Mute | Cmd::Music => self.audio_cmds.push(c),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        self.link = Some(link);
+        if let Some((start, frames, lobby, my)) = guest_frames {
+            if start {
+                if let (Some(l), Some(my)) = (lobby, my) {
+                    // the host started a race: build ours to match
+                    let humans: Vec<usize> = l.players.iter().map(|p| p.2).collect();
+                    let link = self.link.take();
+                    self.level = l.level;
+                    self.rebuild(Phase::Race, l.course.min(courses().len() - 1), my, &humans, link);
+                }
+            }
+            if self.phase == Phase::Race {
+                for (_, snap) in frames {
+                    self.t += DT;
+                    self.race.apply(*snap);
+                    self.after_step();
+                }
+                handled = true;
+            }
+        }
+        handled
     }
 
     fn player_done(&self) -> bool {
-        self.race.player().is_some_and(|p| self.race.racers[p].finished.is_some())
+        self.race.racers[self.pick].finished.is_some() && self.race.racers[self.pick].is_player()
     }
 
     fn step_race(&mut self, c: Controls) {
+        let inputs: Vec<(usize, Controls)> = if self.phase == Phase::Race { vec![(self.pick, c)] } else { Vec::new() };
+        self.step_with(&inputs);
+    }
+
+    fn step_with(&mut self, inputs: &[(usize, Controls)]) {
         self.t += DT;
         let me = self.me();
         let before = self.race.racers[me].last;
-        self.race.step(c);
+        self.race.step_with(inputs);
         let after = self.race.racers[me].last;
         if self.phase == Phase::Race && after != before {
             log::debug!("controls {after:?}");
         }
+        self.after_step();
+    }
+
+    /// Everything that follows a step of the race: camera, birds, sounds,
+    /// particles, messages.
+    fn after_step(&mut self) {
+        let me = self.me();
         self.cam.follow(&self.race.racers[me].kart, &self.race.track, DT);
         let where_: Vec<(f32, f32)> = self.race.racers.iter().map(|r| (r.kart.x, r.kart.y)).collect();
         let ground = self.race.track.height(self.cam.x, self.cam.y);
@@ -546,7 +742,8 @@ impl Game {
                 put_text(buf, x + 11 + j, yy, "█", panel_style().fg(if on { Color::Rgb(c.0, c.1, c.2) } else { Color::Rgb(50, 56, 90) }));
             }
         }
-        let keys = "Left/Right: choose    Enter: race    Esc: back";
+        self.draw_net_status(buf, area, 1);
+        let keys = if self.guesting() { "Left/Right: choose    the host starts the race    Esc: back" } else { "Left/Right: choose    Enter: race    Esc: back" };
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, area.height.saturating_sub(3), keys, accent_style());
         let pos = format!("{} of {}", self.pick + 1, ROSTER.len());
         put_text(buf, area.width.saturating_sub(pos.len() as u16) / 2, area.height.saturating_sub(4), &pos, panel_style());
@@ -564,6 +761,7 @@ impl Game {
         for (i, l) in tag.iter().enumerate() {
             put_text(buf, area.width.saturating_sub(l.chars().count() as u16) / 2, y0 + i as u16, l, panel_style());
         }
+        self.draw_net_status(buf, area, 1);
         let course = format!("<  {}  >", courses()[self.course].0);
         let y1 = area.height.saturating_sub(4);
         put_text(buf, area.width.saturating_sub(course.len() as u16) / 2, y1, &course, accent_style());
@@ -776,6 +974,45 @@ impl Game {
         let near = self.race.weather.twisters.iter().map(|t| (1.0 - (t.x - k.x).hypot(t.y - k.y) / 60.0).max(0.0)).fold(0.0, f32::max);
         let gain = if self.phase == Phase::Race { 1.0 } else { 0.3 };
         (self.race.weather.blizzard * 0.8 + near * 0.6).min(1.0) * gain
+    }
+
+    /// Who's in, and how to join, on the menus.
+    fn draw_net_status(&self, buf: &mut Buffer, area: Rect, y: u16) {
+        let Some(link) = self.link.as_deref() else { return };
+        let mut lines: Vec<String> = Vec::new();
+        match link {
+            Link::Host(h) => {
+                let mut names = vec![format!("{} ({})", h.name, ROSTER[self.pick].name)];
+                names.extend(h.seats.iter().map(|s| format!("{} ({})", s.name, ROSTER[s.pick].name)));
+                lines.push(format!(" HOSTING: {} ", h.status));
+                lines.push(format!(" racers: {} ", names.join(", ")));
+                if let Some(id) = &h.id {
+                    lines.push(format!(" over the internet: sleighride --join {id} "));
+                }
+            }
+            Link::Guest(g) => {
+                lines.push(format!(" NETWORK: {} ", g.status));
+                if let Some(l) = &g.lobby {
+                    let names: Vec<String> = l.players.iter().map(|p| format!("{} ({})", p.1, ROSTER[p.2.min(ROSTER.len() - 1)].name)).collect();
+                    lines.push(format!(" racers: {} ", names.join(", ")));
+                    lines.push(format!(" course: {}, rivals {} ", courses()[l.course.min(courses().len() - 1)].0, DIFFICULTY[l.level.min(DIFFICULTY.len() - 1)].0));
+                }
+            }
+            Link::Browse(b) => {
+                if b.found.is_empty() {
+                    lines.push(format!(" {} ", b.status));
+                } else {
+                    for f in &b.found {
+                        lines.push(format!(" found: {}'s race ({} in{}) ", f.beacon.name, f.beacon.players, if f.beacon.in_game { ", racing" } else { "" }));
+                    }
+                    lines.push(" Enter: join the first ".into());
+                }
+            }
+        }
+        for (i, l) in lines.iter().enumerate() {
+            let w = l.chars().count() as u16;
+            put_text(buf, area.width.saturating_sub(w) / 2, y + i as u16, l, accent_style());
+        }
     }
 
     pub fn snapshot(&self) {

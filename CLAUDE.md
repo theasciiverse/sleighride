@@ -114,8 +114,8 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - 3-2-1-GO countdown with a rocket start, three laps, lap times, wrong-way,
   final-lap banners, pause, help, restart
 - Keyboard (exact holds under the kitty protocol, latched gas otherwise) and
-  gamepad; session logging per the Asciiverse convention
-- 39 tests, including a full six-racer race on each course (winner to last
+  gamepad; network races for up to six (`--host`, `--join [ID]`); session logging per the Asciiverse convention
+- 44 tests, including a full six-racer race on each course (winner to last
   about 15 s on Frozen Lake, 11 s on Eggnogg; Santa visits twice), snowball,
   mistletoe and item-odds checks, Santa catching the leader, the results
   and title screens
@@ -316,7 +316,22 @@ David wants all of these (2026-10-06), roughly in this order:
       waddling penguin, a walking (four frames) and a reared bear. Rivals
       steer round them. Scenery closer than 5 units to the camera is no
       longer drawn (it only looked huge and odd)
-- [ ] Network play: LAN and internet over iroh, as Panzer and Tetrix do
+- [x] Network play (2026-10-06; `net.rs` and `lan.rs` from Panzer, which
+      took them from Tetrix; `proto.rs`, `netplay.rs`): up to six players.
+      `--host` hosts (the menus show who's in and the iroh id for internet
+      guests); `--join` looks for races on the local network (UDP beacon on
+      port 31459, Enter joins the first found); `--join ID` dials a host
+      across the internet; `--name NAME`. The host runs the only race:
+      guests send their controls every step and pick their own racer,
+      the host picks course and difficulty and starts; the whole race
+      (`race::Snap`, under 6 kB) goes back to every guest every step,
+      events included, so sounds and effects match. A guest who leaves
+      mid-race hands their racer back to the AI; joining mid-race is
+      refused until it ends. No pausing a network race. Verified with two
+      copies on one machine over the LAN path (found, joined, lobby on
+      both, race started, guest's racer driven by the guest).
+      **Needs David:** a race between two real machines, and one across
+      the internet (relay path), haven't been tried
 - [ ] Folklore racers and hazards (see the backlog)
 
 ## History

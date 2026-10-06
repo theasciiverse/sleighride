@@ -5,6 +5,10 @@ mod game;
 mod input;
 mod kart;
 mod model;
+mod proto;
+mod netplay;
+mod net;
+mod lan;
 mod roster;
 mod story;
 mod race;
@@ -31,12 +35,16 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "sleighride [--race] [--course N] [--as NAME] [--mute]\n\n\
+            "sleighride [--race] [--course N] [--as NAME] [--mute] [--host | --join [ID]] [--name NAME]\n\n\
              Sleighride: kart racing with Santa's runaway helpers. In game, H shows the controls.\n\
              --race                      skip the title screen\n\
              --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest\n\
              --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper or Nutmeg\n\
              --mute                      no sound (F8 toggles sound, M the music)\n\
+             --host                      host a race others can join (local network or internet)\n\
+             --join                      look for races on the local network\n\
+             --join ID                   join a host by its iroh id (works across the internet)\n\
+             --name NAME                 your name in network races\n\
              --shot FILE COLS ROWS SECS  write a PPM of the attract race after SECS\n\
              \x20                           (SECS ending in d: then wait for a gold drift)"
         );
@@ -121,6 +129,27 @@ fn main() -> io::Result<()> {
     let mut input = Input::new(kitty);
     input.open_pad();
     let mut game = Game::new(start, course, pick, 1);
+    let name = args
+        .iter()
+        .position(|a| a == "--name")
+        .and_then(|i| args.get(i + 1).cloned())
+        .or_else(|| std::env::var("USER").ok())
+        .unwrap_or_else(|| "elf".into());
+    if args.iter().any(|a| a == "--host") {
+        game.link = Some(Box::new(netplay::Link::host(name)));
+    } else if let Some(i) = args.iter().position(|a| a == "--join") {
+        match args.get(i + 1).filter(|v| !v.starts_with("--")) {
+            Some(id) => match id.parse::<iroh::EndpointId>() {
+                Ok(id) => game.link = Some(Box::new(netplay::Link::join(iroh::EndpointAddr::new(id), name))),
+                Err(e) => {
+                    ratatui::restore();
+                    eprintln!("not an iroh id: {id}: {e}");
+                    std::process::exit(2);
+                }
+            },
+            None => game.link = Some(Box::new(netplay::Link::browse(name))),
+        }
+    }
     let result = run(&mut terminal, &mut game, &mut input, &mut audio);
     if kitty {
         let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);

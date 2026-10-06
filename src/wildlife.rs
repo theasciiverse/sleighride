@@ -7,6 +7,8 @@
 //!   penguins cross it lumbers after them, never quite fast enough. Race past
 //!   too close and it rears up and swipes you into a spin.
 
+use serde::{Deserialize, Serialize};
+
 use crate::kart::Kart;
 use crate::track::Track;
 
@@ -23,7 +25,7 @@ const BEAR_NOTICE: f32 = 8.0;
 const BEAR_REACH: f32 = 5.5;
 const REAR: f32 = 0.6;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Gait {
     Waddling,
     /// Bowled over: sliding on its belly, seconds since.
@@ -31,7 +33,7 @@ pub enum Gait {
     Gone,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Penguin {
     pub x: f32,
     pub y: f32,
@@ -43,7 +45,7 @@ pub struct Penguin {
     pub step: f32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Bear {
     pub x: f32,
     pub y: f32,
@@ -65,6 +67,7 @@ pub enum Wild {
     Swiped(usize),
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Wildlife {
     pub penguins: Vec<Penguin>,
     pub bear: Option<Bear>,

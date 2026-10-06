@@ -19,6 +19,8 @@
 //! snowplough and hunts whoever is in front. Catching them spins them out
 //! hard; then he goes off to cool down, and comes back.
 
+use serde::{Deserialize, Serialize};
+
 use crate::auto::{self, Ai};
 use crate::kart::{Controls, Kart, DT};
 use crate::roster::{PLOUGH, ROSTER};
@@ -37,7 +39,7 @@ const KISS_R: f32 = 5.0;
 /// How long a clip round the ear shows: the swing, then the stars.
 pub const CLIP_TIME: f32 = 1.8;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Item {
     Snowball,
     Present,
@@ -60,6 +62,7 @@ impl Item {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Racer {
     /// Index into the roster.
     pub who: usize,
@@ -104,14 +107,14 @@ impl Racer {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum ShotKind {
     Snowball,
     Present,
     Tinsel,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Shot {
     pub kind: ShotKind,
     pub x: f32,
@@ -127,14 +130,14 @@ pub struct Shot {
 }
 
 /// A present dropped on the road.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Trap {
     pub x: f32,
     pub y: f32,
     pub age: f32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct ItemBox {
     pub x: f32,
     pub y: f32,
@@ -142,6 +145,7 @@ pub struct ItemBox {
     pub gone: f32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Santa {
     pub kart: Kart,
     pub active: bool,
@@ -156,7 +160,7 @@ pub struct Santa {
 }
 
 /// Things that happened this step, for messages and effects.
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Note {
     SantaComing,
     SantaCaught(usize),
@@ -211,17 +215,27 @@ fn wrap(a: f32) -> f32 {
 impl Race {
     /// A race of the whole roster. `player` is the roster index the player
     /// drives (they start at the back); None races everyone on autopilot.
+    #[cfg(test)]
     pub fn new(track: Track, player: Option<usize>, seed: u32) -> Race {
+        let humans: Vec<usize> = player.into_iter().collect();
+        Race::with_humans(track, &humans, seed)
+    }
+
+    /// A race of the whole roster where the racers in `humans` (roster
+    /// indices) are driven by people; they start at the back of the grid,
+    /// the first of them last. With nobody, the grid turns with the seed.
+    pub fn with_humans(track: Track, humans: &[usize], seed: u32) -> Race {
         let n = ROSTER.len();
         let mut racers = Vec::new();
+        let ais: Vec<usize> = (0..n).filter(|w| !humans.contains(w)).collect();
         for who in 0..n {
-            // grid slot 0 is the front; the player starts last
-            let slot = match player {
-                Some(p) if who == p => n - 1,
-                Some(p) if who > p => who - 1,
-                // with nobody playing, the grid turns with the seed
-                None => (who + seed as usize) % n,
-                _ => who,
+            // grid slot 0 is the front
+            let slot = if humans.is_empty() {
+                (who + seed as usize) % n
+            } else if let Some(h) = humans.iter().position(|&w| w == who) {
+                n - 1 - h
+            } else {
+                ais.iter().position(|&w| w == who).unwrap()
             };
             let back = 10 + slot as isize * 9;
             let i = track.ahead(0, -back);
@@ -231,7 +245,7 @@ impl Race {
             let (x, y) = (px - ty * side, py + tx * side);
             let mut kart = Kart::new(x, y, track.heading_at(i), ROSTER[who].stats);
             kart.settle(&track);
-            let ai = if player == Some(who) { None } else { Some(Ai::new(who, seed)) };
+            let ai = if humans.contains(&who) { None } else { Some(Ai::new(who, seed)) };
             racers.push(Racer {
                 who,
                 kart,
@@ -336,7 +350,18 @@ impl Race {
         self.racers.iter().position(|r| r.place == place)
     }
 
+    /// One step with the (first) player's controls.
+    #[cfg(test)]
     pub fn step(&mut self, player: Controls) {
+        match self.player() {
+            Some(p) => self.step_with(&[(p, player)]),
+            None => self.step_with(&[]),
+        }
+    }
+
+    /// One step with each human racer's controls: (racer index, controls).
+    /// A human with none this step coasts.
+    pub fn step_with(&mut self, inputs: &[(usize, Controls)]) {
         self.notes.clear();
         let was_counting = self.counting_down();
         self.clock += DT;
@@ -344,7 +369,7 @@ impl Race {
             .map(|i| {
                 let r = &self.racers[i];
                 if r.is_player() && r.finished.is_none() && !self.autopilot {
-                    player
+                    inputs.iter().find(|(k, _)| *k == i).map_or(Controls::default(), |(_, c)| *c)
                 } else {
                     auto::drive(self, i)
                 }
@@ -360,7 +385,8 @@ impl Race {
             }
             return;
         }
-        let player_progress = self.player().map(|p| self.progress(p));
+        // the field closes up on the leading human
+        let player_progress = (0..self.racers.len()).filter(|&i| self.racers[i].is_player()).map(|i| self.progress(i)).reduce(f32::max);
         for i in 0..self.racers.len() {
             let c = controls[i];
             // rivals run at the difficulty's pace, close up a little on the
@@ -826,6 +852,58 @@ impl Race {
     }
 }
 
+/// Everything about a race that changes as it runs: what a host sends its
+/// guests every step. The track is rebuilt from the course instead.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Snap {
+    racers: Vec<Racer>,
+    clock: f32,
+    shots: Vec<Shot>,
+    traps: Vec<Trap>,
+    boxes: Vec<ItemBox>,
+    santa: Santa,
+    weather: crate::weather::Weather,
+    wildlife: crate::wildlife::Wildlife,
+    notes: Vec<Note>,
+    order: Vec<usize>,
+    rival_pace: f32,
+    seed: u32,
+}
+
+impl Race {
+    pub fn snapshot(&self) -> Snap {
+        Snap {
+            racers: self.racers.clone(),
+            clock: self.clock,
+            shots: self.shots.clone(),
+            traps: self.traps.clone(),
+            boxes: self.boxes.clone(),
+            santa: self.santa.clone(),
+            weather: self.weather.clone(),
+            wildlife: self.wildlife.clone(),
+            notes: self.notes.clone(),
+            order: self.order.clone(),
+            rival_pace: self.rival_pace,
+            seed: self.seed,
+        }
+    }
+
+    pub fn apply(&mut self, s: Snap) {
+        self.racers = s.racers;
+        self.clock = s.clock;
+        self.shots = s.shots;
+        self.traps = s.traps;
+        self.boxes = s.boxes;
+        self.santa = s.santa;
+        self.weather = s.weather;
+        self.wildlife = s.wildlife;
+        self.notes = s.notes;
+        self.order = s.order;
+        self.rival_pace = s.rival_pace;
+        self.seed = s.seed;
+    }
+}
+
 fn pair_mut<T>(v: &mut [T], a: usize, b: usize) -> (&mut T, &mut T) {
     let (lo, hi) = v.split_at_mut(b);
     (&mut lo[a], &mut hi[0])
@@ -941,6 +1019,38 @@ mod tests {
         assert!(r.racers[p].kart.stunned());
         r.step(Controls::default());
         assert!(r.racers[p].kart.air, "up in the air");
+    }
+
+    #[test]
+    fn two_humans_start_at_the_back_and_drive_their_own() {
+        let mut r = Race::with_humans(Track::frozen_lake(), &[2, 4], 3);
+        assert!(r.racers[2].is_player() && r.racers[4].is_player());
+        assert_eq!(r.racers[2].place, 6);
+        assert_eq!(r.racers[4].place, 5);
+        r.clock = COUNTDOWN;
+        for _ in 0..120 {
+            r.step_with(&[(2, Controls { gas: true, ..Default::default() })]);
+        }
+        assert!(r.racers[2].kart.speed > 20.0, "the one with the gas goes");
+        assert!(r.racers[4].kart.speed < 1.0, "the one without input coasts");
+    }
+
+    #[test]
+    fn a_snapshot_carries_the_race_to_another_copy() {
+        let mut host = Race::with_humans(Track::eggnogg(), &[0], 9);
+        host.autopilot = true;
+        for _ in 0..(25.0 / DT) as usize {
+            host.step(Controls::default());
+        }
+        let mut guest = Race::with_humans(Track::eggnogg(), &[0], 9);
+        let bytes = postcard::to_allocvec(&host.snapshot()).unwrap();
+        guest.apply(postcard::from_bytes(&bytes).unwrap());
+        for (a, b) in host.racers.iter().zip(&guest.racers) {
+            assert_eq!((a.kart.x, a.kart.y, a.place, a.lap), (b.kart.x, b.kart.y, b.place, b.lap));
+        }
+        assert_eq!(host.clock, guest.clock);
+        // sent sixty times a second: keep it to a few kilobytes
+        assert!(bytes.len() < 6000, "snapshot is {} bytes", bytes.len());
     }
 
     #[test]
