@@ -233,10 +233,9 @@ A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
   meet in the wild, Arctic vs Antarctic, which is the joke)
 - **Christmas folklore from around the world** (public domain): Julbocken
   (the Swedish straw Yule goat: racer or giant course landmark), La Befana
-  (Italian witch on a broomstick: a flying racer), Krampus (Alpine: another
-  chaser), Jolakotturinn (the Icelandic Yule Cat: hazard), the Yule Lads
+  (Italian witch on a broomstick: a flying racer), Jolakotturinn (the Icelandic Yule Cat: hazard), the Yule Lads
   (Iceland's thirteen pranksters: item thieves), Tomte/Nisse (racer), Ded
-  Moroz and Snegurochka, Tio de Nadal (item), Mari Lwyd. Possibly a world
+  Moroz and Snegurochka, Mari Lwyd. Possibly a world
   tour of courses
 - More courses beyond Frozen Lake and Eggnogg; a track format instead of
   control points in code
@@ -365,10 +364,9 @@ David wants all of these (2026-10-06), roughly in this order:
       and he snatches it and runs off giggling with his sack ("YULE LAD
       STOLE YOUR ITEM!"), hiding 14 s. Rivals keep clear of a pouncing
       cat, and of the lads while holding an item.
-      **Needs David's decision:** Krampus (the Alpine horned punisher) as
-      a second chaser? He's a scarier figure for a family game, so not
-      built until you say. Other folklore ideas still open: Ded Moroz and
-      Snegurochka, Tio de Nadal (an item), Mari Lwyd
+      **Ruled out by David (2026-10-06): Krampus, and Tio de Nadal (the
+      Catalan log).** Other folklore ideas still open: Ded Moroz and
+      Snegurochka, Mari Lwyd
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
 
