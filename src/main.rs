@@ -38,9 +38,9 @@ fn main() -> io::Result<()> {
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
             "sleighride [--race] [--course N] [--as NAME] [--mute] [--host | --join [ID]] [--name NAME]\n\n\
-             Sleighride: kart racing with Santa's runaway helpers. In game, H shows the controls.\n\
+             Sleighride: kart racing with Santa's runaway helpers. In game, F1 or H shows the help.\n\
              --race                      skip the title screen\n\
-             --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest, 5 Gingerbread Village, 6 The Workshop\n\
+             --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest, 5 Gingerbread Village, 6 The Workshop, 7 The Glacier\n\
              --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper, Nutmeg, Tomte or Befana\n\
              --mute                      no sound (F8 toggles sound, M the music)\n\
              --host                      host a race others can join (local network or internet)\n\

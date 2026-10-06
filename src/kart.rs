@@ -79,6 +79,8 @@ pub enum Event {
     Land { trick: bool },
     /// Into a hole in the ice.
     Splash,
+    /// Dropped into a crevasse.
+    Crevasse,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -222,22 +224,27 @@ impl Kart {
         self.vertical(track);
         if !self.air && !self.stunned() && !self.plough && track.in_hole(self.x, self.y) {
             // even a broom flies low enough to dip into open water
-            self.splash(track);
+            self.splash(track, Event::Splash);
+        } else if !self.plough && track.in_crevasse(self.x, self.y) && self.z < track.height(self.x, self.y) + crate::track::CREVASSE_DEPTH - 2.5 {
+            // came at it too slow: dropped below the lip, and you're in
+            self.splash(track, Event::Crevasse);
         }
     }
 
-    /// Fallen through the ice: hauled out a little way back, shivering,
-    /// all speed gone.
-    fn splash(&mut self, track: &Track) {
-        self.events.push(Event::Splash);
+    /// Fallen through the ice or into a crevasse: hauled out a little way
+    /// back, shivering, all speed gone.
+    fn splash(&mut self, track: &Track, why: Event) {
+        self.events.push(why);
         let n = track.len() as isize;
         if let Some(i) = track.idx(self.x, self.y) {
-            // back along the road to a spot clear of holes
-            let mut back = 10;
+            // back along the road to a spot clear of holes; from a crevasse,
+            // back past its kicker, with room to get up to speed again
+            let crevasse = why == Event::Crevasse;
+            let mut back = if crevasse { 100 } else { 10 };
             loop {
                 let j = ((i as isize - back) % n + n) % n;
                 let (px, py) = track.pts[j as usize];
-                if !track.in_hole(px, py) || back > 60 {
+                if !track.in_hole(px, py) && !track.in_crevasse(px, py) || back > if crevasse { 200 } else { 60 } {
                     self.x = px;
                     self.y = py;
                     self.heading = track.heading_at(j as usize);
@@ -668,6 +675,57 @@ mod tests {
         assert_eq!(k.speed, 0.0);
         assert!(!t.in_hole(k.x, k.y), "hauled out");
         assert!(k.stunned());
+    }
+
+    /// A kart `back` samples before the first crevasse, pointing along the
+    /// road at `speed`, run for up to `secs`: whether it fell in, and how
+    /// far round the lap it got.
+    fn at_the_crevasse(back: usize, speed: f32, gas: bool, secs: f32) -> (bool, usize) {
+        let t = Track::glacier();
+        let (s0, len) = t.crevasses[0];
+        let i = s0 - back;
+        let (x, y) = t.pts[i];
+        let mut k = Kart::new(x, y, t.heading_at(i), crate::roster::ROSTER[0].stats);
+        k.settle(&t);
+        k.speed = speed;
+        let mut fell = false;
+        let mut furthest = i;
+        for _ in 0..(secs / DT) as usize {
+            // stay on the line
+            let j = t.idx(k.x, k.y).unwrap_or(i);
+            let off = wrap(t.heading_at(j) - k.heading);
+            k.step(Controls { gas, steer: (off * 3.0).clamp(-1.0, 1.0), ..Default::default() }, &t);
+            fell |= k.events.contains(&Event::Crevasse);
+            if !fell {
+                furthest = furthest.max(t.idx(k.x, k.y).unwrap_or(0));
+            }
+            if fell {
+                assert!(!t.in_crevasse(k.x, k.y), "hauled out");
+                let at = t.idx(k.x, k.y).unwrap();
+                assert!(at + 80 < s0, "back before its kicker ({at})");
+                // from there, flat out, you clear it
+                for _ in 0..(6.0 / DT) as usize {
+                    let j = t.idx(k.x, k.y).unwrap_or(at);
+                    let off = wrap(t.heading_at(j) - k.heading);
+                    k.step(Controls { gas: true, steer: (off * 3.0).clamp(-1.0, 1.0), ..Default::default() }, &t);
+                    assert!(!k.events.contains(&Event::Crevasse), "fell in again");
+                }
+                assert!(t.idx(k.x, k.y).unwrap() > s0 + len, "cleared it second time");
+                break;
+            }
+        }
+        (fell, furthest)
+    }
+
+    #[test]
+    fn at_speed_you_clear_a_crevasse_slow_you_fall_in() {
+        let t = Track::glacier();
+        let (s0, len) = t.crevasses[0];
+        let (fell, got) = at_the_crevasse(60, 62.0, true, 3.0);
+        assert!(!fell, "flew over it");
+        assert!(got > s0 + len + 20, "and on down the road ({got})");
+        let (fell, _) = at_the_crevasse(8, 10.0, true, 4.0);
+        assert!(fell, "crept in");
     }
 
     #[test]

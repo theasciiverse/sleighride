@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 pub const MAP: usize = 1024;
 /// Beyond this distance from the centreline the snowbanks start.
 const BANK_FROM: f32 = 40.0;
+/// How deep crevasses are, and how far past the road's edge they run.
+pub const CREVASSE_DEPTH: f32 = 14.0;
+const CREVASSE_REACH: f32 = 8.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Surface {
@@ -52,6 +55,8 @@ pub struct Theme {
     /// Indoors: a ceiling of rafters and lamps instead of sky, toys
     /// instead of pines, no birds.
     pub indoors: bool,
+    /// Seracs (jagged spires of blue glacier ice) instead of pines.
+    pub seracs: bool,
 }
 
 pub const FROZEN: Theme = Theme {
@@ -70,6 +75,7 @@ pub const FROZEN: Theme = Theme {
     canes: false,
     houses: false,
     indoors: false,
+    seracs: false,
 };
 
 /// Eggnogg: a creamy lake flecked with nutmeg under a sunset.
@@ -89,6 +95,7 @@ pub const EGGNOGG: Theme = Theme {
     canes: false,
     houses: false,
     indoors: false,
+    seracs: false,
 };
 
 #[derive(Clone, Copy)]
@@ -137,6 +144,8 @@ pub struct Track {
     pub belts: Vec<(usize, usize)>,
     /// Stands of spectators beside the road, as fractions of the lap.
     pub stands: Vec<f32>,
+    /// Crevasses across the road: (first sample, length).
+    pub crevasses: Vec<(usize, usize)>,
     /// Weather: whether blizzards blow here, and how many snow tornadoes.
     pub blizzards: bool,
     pub twisters: usize,
@@ -178,11 +187,13 @@ pub struct Relief {
     pub belts: &'static [(f32, usize)],
     /// Tall walls instead of slopes down to a lake (indoors).
     pub walls: bool,
+    /// Crevasses right across the road: (fraction of the lap, length).
+    pub crevasses: &'static [(f32, usize)],
     pub lake: f32,
 }
 
 #[cfg(test)]
-const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], cottages: &[], belts: &[], walls: false, lake: 0.0 };
+const FLAT: Relief = Relief { keys: &[], kickers: &[], inlets: &[], on_lake: &[], holes: &[], cottages: &[], belts: &[], walls: false, crevasses: &[], lake: 0.0 };
 
 /// Eggnogg: up from the start to a high ridge in the north, a kicker off
 /// its edge down into the eggnog basin, rolling hills through the hairpins
@@ -213,6 +224,7 @@ const EGGNOGG_RELIEF: Relief = Relief {
     cottages: &[],
     belts: &[],
     walls: false,
+    crevasses: &[],
     lake: -20.0,
 };
 
@@ -250,6 +262,7 @@ const THIN_ICE_RELIEF: Relief = Relief {
     cottages: &[],
     belts: &[],
     walls: false,
+    crevasses: &[],
     lake: 0.0,
 };
 
@@ -287,6 +300,7 @@ pub const CANDY: Theme = Theme {
     canes: true,
     houses: false,
     indoors: false,
+    seracs: false,
 };
 
 /// Candy Cane Forest: winding through the canes, over a big hill with a
@@ -317,6 +331,7 @@ const CANDY_RELIEF: Relief = Relief {
     cottages: &[],
     belts: &[],
     walls: false,
+    crevasses: &[],
     lake: -14.0,
 };
 
@@ -356,6 +371,7 @@ pub const GINGER: Theme = Theme {
     canes: false,
     houses: true,
     indoors: false,
+    seracs: false,
 };
 
 /// Gingerbread Village: through the village and up over a hill with a
@@ -384,6 +400,7 @@ const GINGER_RELIEF: Relief = Relief {
     cottages: &[(0.3385, 0.42)],
     belts: &[],
     walls: false,
+    crevasses: &[],
     lake: -10.0,
 };
 
@@ -424,6 +441,7 @@ pub const WORKSHOP: Theme = Theme {
     canes: false,
     houses: false,
     indoors: true,
+    seracs: false,
 };
 
 /// The Workshop: along the floor between the toy stacks, onto conveyor
@@ -437,6 +455,7 @@ const WORKSHOP_RELIEF: Relief = Relief {
     cottages: &[],
     belts: &[(0.08, 150), (0.52, 180), (0.86, 160)],
     walls: true,
+    crevasses: &[],
     lake: 0.0,
 };
 
@@ -458,6 +477,59 @@ const WORKSHOP_PTS: &[(f32, f32)] = &[
     (400.0, 780.0),
 ];
 
+/// The Glacier: night under the northern lights, packed snow on blue
+/// glacier ice, seracs standing about like broken teeth.
+pub const GLACIER: Theme = Theme {
+    road: (176, 196, 222),
+    kerb: [(40, 110, 200), (236, 244, 255)],
+    powder: [(196, 220, 246), (232, 242, 255)],
+    bank: [(120, 170, 220), (200, 228, 250)],
+    lake: [(60, 120, 180), (96, 160, 210), (190, 228, 248)],
+    flecks: false,
+    ice: (150, 214, 244),
+    sky: [(6, 20, 40), (60, 120, 150)],
+    haze: (150, 190, 220),
+    hills: [(150, 176, 214), (90, 110, 160)],
+    aurora: true,
+    birds: (220, 236, 250),
+    canes: false,
+    houses: false,
+    indoors: false,
+    seracs: true,
+};
+
+/// The Glacier: a long climb up the ice, then a fast run down it over two
+/// crevasses, each with a kicker before it. Come at them slow and you're in.
+const GLACIER_RELIEF: Relief = Relief {
+    keys: &[(0.0, 0.0), (0.06, 0.0), (0.2, 14.0), (0.32, 30.0), (0.44, 32.0), (0.52, 24.0), (0.62, 16.0), (0.7, 14.0), (0.8, 6.0), (0.93, 0.0)],
+    kickers: &[(0.55, 3.5, 24), (0.75, 3.5, 24)],
+    inlets: &[],
+    on_lake: &[],
+    holes: &[],
+    cottages: &[],
+    belts: &[],
+    walls: false,
+    crevasses: &[(0.5505, 16), (0.7505, 16)],
+    lake: -20.0,
+};
+
+const GLACIER_PTS: &[(f32, f32)] = &[
+    (160.0, 820.0),
+    (140.0, 560.0),
+    (190.0, 320.0),
+    (330.0, 180.0),
+    (560.0, 140.0),
+    (780.0, 180.0),
+    (890.0, 340.0),
+    (880.0, 560.0),
+    (760.0, 660.0),
+    (600.0, 620.0),
+    (470.0, 700.0),
+    (500.0, 860.0),
+    (380.0, 920.0),
+    (230.0, 920.0),
+];
+
 /// A bright, overcast winter morning.
 pub const MORNING: Theme = Theme {
     road: (172, 178, 198),
@@ -475,6 +547,7 @@ pub const MORNING: Theme = Theme {
     canes: false,
     houses: false,
     indoors: false,
+    seracs: false,
 };
 
 /// Frozen Lake: the start straight climbs a ridge along the west shore to a
@@ -505,11 +578,12 @@ const FROZEN_RELIEF: Relief = Relief {
     cottages: &[],
     belts: &[],
     walls: false,
+    crevasses: &[],
     lake: -26.0,
 };
 
 /// The courses, in menu order.
-pub fn courses() -> [(&'static str, fn() -> Track); 6] {
+pub fn courses() -> [(&'static str, fn() -> Track); 7] {
     [
         ("Frozen Lake", Track::frozen_lake),
         ("Eggnogg", Track::eggnogg),
@@ -517,6 +591,7 @@ pub fn courses() -> [(&'static str, fn() -> Track); 6] {
         ("Candy Cane Forest", Track::candy_cane_forest),
         ("Gingerbread Village", Track::gingerbread_village),
         ("The Workshop", Track::workshop),
+        ("The Glacier", Track::glacier),
     ]
 }
 
@@ -771,6 +846,13 @@ impl Track {
         t
     }
 
+    pub fn glacier() -> Track {
+        let mut t = Track::build("The Glacier", GLACIER_PTS, 14.0, GLACIER, &GLACIER_RELIEF);
+        t.blizzards = true;
+        t.add_ice(&[(0.24, 4.0, 7.0), (0.4, -5.0, 6.0), (0.66, 0.0, 8.0), (0.86, 5.0, 6.0)]);
+        t
+    }
+
     pub fn thin_ice() -> Track {
         let mut t = Track::build("Thin Ice", THIN_ICE_PTS, 14.0, MORNING, &THIN_ICE_RELIEF);
         t.blizzards = true;
@@ -834,6 +916,16 @@ impl Track {
         let lake_spans: Vec<(usize, usize)> = relief.on_lake.iter().map(|&(a, b)| ((a * n as f32) as usize, (b * n as f32) as usize)).collect();
         let out_on_lake: Vec<bool> = (0..n).map(|i| lake_spans.iter().any(|&(a, b)| (i + n - a) % n <= (b + n - a) % n)).collect();
         let mut ground = ground_heights(&cells, &land, &kick, relief.lake, half, &out_on_lake);
+        if !relief.crevasses.is_empty() {
+            // a chasm right across the road and out past the banks
+            let spans: Vec<(usize, usize)> = relief.crevasses.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
+            for (k, c) in cells.iter().enumerate() {
+                let i = c.idx as usize;
+                if c.dist <= half + CREVASSE_REACH && spans.iter().any(|&(s0, len)| (i + n - s0) % n < len) {
+                    ground[k] -= CREVASSE_DEPTH;
+                }
+            }
+        }
         if relief.walls {
             // indoors: the floor stays level out to the walls, which rise
             // sheer beyond the bank
@@ -851,7 +943,7 @@ impl Track {
         }
         let inlets = relief.inlets.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect();
         let kicks = relief.kickers.iter().map(|&(lip, _, run)| (((lip * n as f32) as usize + n - run) % n, run)).collect();
-        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), belts: relief.belts.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), stands: Vec::new(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
+        let mut t = Track { name, pts, tangents, half, cells, ground, lake: relief.lake, trees: Vec::new(), theme, ice: Vec::new(), inlets, kicks, poles: Vec::new(), lake_spans, holes: Vec::new(), cottages: Vec::new(), belts: relief.belts.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), stands: Vec::new(), crevasses: relief.crevasses.iter().map(|&(f, len)| ((f * n as f32) as usize, len)).collect(), blizzards: false, twisters: 0, penguins: None, yule_cat: None, yule_lads: false, relief };
         for &(f, size) in relief.cottages {
             let i = (f * n as f32) as usize;
             let (px, py) = t.pts[i];
@@ -879,8 +971,9 @@ impl Track {
                 }
             }
         }
-        let inlets: Vec<(usize, usize)> = t.inlets.clone();
-        for (s0, len) in inlets {
+        // marker poles either side of each inlet and crevasse
+        let gaps: Vec<(usize, usize)> = t.inlets.iter().chain(t.crevasses.iter()).copied().collect();
+        for (s0, len) in gaps {
             for i in [(s0 + n - 3) % n, (s0 + len + 2) % n] {
                 let (px, py) = t.pts[i];
                 let (tx, ty) = t.tangents[i];
@@ -980,6 +1073,15 @@ impl Track {
     /// Whether a point is in a hole in the ice.
     pub fn in_hole(&self, x: f32, y: f32) -> bool {
         self.holes.iter().any(|&(hx, hy, r)| (x - hx).abs() < r && (y - hy).abs() < r && (x - hx).hypot(y - hy) < r)
+    }
+
+    /// Over a crevasse: on the road (or its banks) where one crosses.
+    pub fn in_crevasse(&self, x: f32, y: f32) -> bool {
+        if self.crevasses.is_empty() {
+            return false;
+        }
+        let n = self.len();
+        self.idx(x, y).is_some_and(|i| self.dist(x, y) <= self.half + CREVASSE_REACH && self.crevasses.iter().any(|&(s0, len)| (i + n - s0) % n < len))
     }
 
     /// Whether sample `i` is on a conveyor belt.
@@ -1102,7 +1204,9 @@ mod tests {
             // lip the lookup blends the top of the ramp with the drop)
             let (x, y) = t.pts[i];
             let near_lip = lips.iter().any(|&l| (i as isize - l as isize).abs() <= 2);
-            assert!(near_lip || (t.height(x, y) - profile[i]).abs() < 0.6, "{name} at {i}: {} vs {}", t.height(x, y), profile[i]);
+            // a crevasse is a chasm cut across the road on purpose
+            let in_crevasse = t.crevasses.iter().any(|&(s0, len)| (i + n + 3 - s0) % n < len + 6);
+            assert!(near_lip || in_crevasse || (t.height(x, y) - profile[i]).abs() < 0.6, "{name} at {i}: {} vs {}", t.height(x, y), profile[i]);
         }
         for &l in &lips {
             assert!(profile[l - 1] - profile[l] > 2.5, "{name}: a drop at the lip {l}");

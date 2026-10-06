@@ -34,6 +34,10 @@ const CAPTIONS: [&str; crate::story::PANELS] = [
 /// Difficulty: its name and the rivals' pace (a share of their top speed).
 /// The rivals drift perfectly, so at full pace they are a hard race; a
 /// little slower gives a person a fair one.
+/// Under the title, in the pixel lettering.
+const TAGLINE: &str = "CHRISTMAS MORNING. SANTA'S ASLEEP.|THE ELVES HAVE FOUND THE KEYS.";
+const TAGLINE_NARROW: &str = "CHRISTMAS MORNING.|SANTA'S ASLEEP. THE ELVES|HAVE FOUND THE KEYS.";
+
 pub const DIFFICULTY: [(&str, f32); 3] = [("Easy", 0.93), ("Normal", 0.96), ("Hard", 1.0)];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -49,13 +53,14 @@ pub enum Phase {
 }
 
 /// What each course is like, for the course page: (the look, what's on it).
-pub const COURSE_NOTES: [(&str, &str); 6] = [
+pub const COURSE_NOTES: [(&str, &str); 7] = [
     ("Aurora night over a frozen lake", "Hills, two jumps and an inlet. The one to learn on."),
     ("Sunset by a lake of eggnog", "Twisty and icy. Mind the Yule Cat and the Yule Lads."),
     ("Out on the frozen lake itself", "Black ice, holes in the ice, blizzards, penguins, a bear."),
     ("Lilac dusk among giant candy canes", "Hills, a big jump, a snow tornado and the Yule Lads."),
     ("Amber evening in a gingerbread village", "Fly over the cottage in the road, or go round it."),
     ("Indoors, in Santa's workshop", "Conveyor belts, a mezzanine jump, and the crowd throws presents."),
+    ("A glacier under the northern lights", "A long climb, then down over two crevasses. Hit them fast."),
 ];
 
 pub struct Game {
@@ -513,6 +518,7 @@ impl Game {
                 Event::Land { trick: true } => Some((Sfx::Trick, 1.0)),
                 Event::Land { trick: false } => Some((Sfx::Land, 1.0)),
                 Event::Splash => Some((Sfx::Splash, 1.0)),
+                Event::Crevasse => Some((Sfx::Thud, 1.0)),
             };
             if let Some(s) = sfx {
                 self.sounds.push((s.0, if playing { s.1 } else { s.1 * 0.4 }));
@@ -551,6 +557,7 @@ impl Game {
                 Event::GoodStart => ("GOOD START", (180, 230, 255)),
                 Event::Stall => ("STALLED", (240, 90, 80)),
                 Event::Splash => ("SPLASH!", (120, 190, 255)),
+                Event::Crevasse => ("CREVASSE!", (150, 214, 244)),
                 _ => continue,
             };
             self.flash = Some((text.into(), 1.2, col));
@@ -725,11 +732,33 @@ impl Game {
     }
 
     fn draw_title_canvas(&self, cv: &mut Canvas, big: i32) {
+        // the race carries on, dimmed, behind the title and the tagline in
+        // the same pixel lettering
         dim(cv);
-        big_text(cv, TITLE, (cv.h as i32) / 7, big + 1, (236, 60, 70));
-        // the showcase: each racer in turn, turning slowly on a lit stage
-        let k = ((self.t / 3.0) as usize) % ROSTER.len();
-        stage(cv, k, self.t, cv.w as f32 / 2.0, cv.h as f32 * 0.64);
+        let (w, h) = (cv.w as i32, cv.h as i32);
+        // the scale big_text will really use, and the block's height
+        let fit = |text: &str, mut scale: i32| {
+            while scale > 1 && text.split('|').any(|l| big_width(l, scale) + 4 > w) {
+                scale -= 1;
+            }
+            (scale, text.split('|').count() as i32 * 7 * scale)
+        };
+        let small = (big - 1).max(1);
+        // narrow windows get the tagline on more, shorter lines
+        let (tag, happy) = if TAGLINE.split('|').any(|l| big_width(l, 1) + 4 > w) { (TAGLINE_NARROW, "HE IS NOT GOING|TO BE HAPPY.") } else { (TAGLINE, "HE IS NOT GOING TO BE HAPPY.") };
+        // the tagline's two parts share one size
+        let small = fit(tag, small).0.min(fit(happy, small).0);
+        let blocks = [(TITLE, fit(TITLE, big + 1).0, (236, 60, 70)), (tag, small, (214, 228, 255)), (happy, small, (250, 210, 70))];
+        let gaps = [(h / 10).max(4), 4, 0];
+        let total: i32 = blocks.iter().zip(gaps).map(|((text, scale, _), gap)| fit(text, *scale).1 + gap).sum();
+        // stacked from about a sixth of the way down, but clear of the key
+        // hints along the bottom (four rows, eight pixels)
+        let mut y = (h * 16 / 100).min(h - 10 - total).max(2);
+        for ((text, scale, colour), gap) in blocks.into_iter().zip(gaps) {
+            let tall = fit(text, scale).1;
+            big_text(cv, text, y + tall / 2, scale, colour);
+            y += tall + gap;
+        }
     }
 
     fn draw_select_canvas(&self, cv: &mut Canvas, big: i32) {
@@ -763,7 +792,7 @@ impl Game {
         let dots: String = (0..n).map(|k| if k == self.course { "● " } else { "○ " }).collect();
         centre(buf, y + 3, &format!("<  {}{} of {n}  >", dots, self.course + 1), accent_style());
         centre(buf, y + 4, &format!("Rivals:  {}  (Up/Down)", DIFFICULTY[self.level].0), panel_style());
-        let keys = "Left/Right: course    Enter: race    Esc: back";
+        let keys = "Left/Right: course    Enter: race    Esc: back    F1: help";
         centre(buf, h.saturating_sub(1), keys, accent_style());
         // the course's shape, top right
         let (mw, mh) = ((w / 5).clamp(12, 34), (h / 4).clamp(5, 14));
@@ -812,29 +841,18 @@ impl Game {
             }
         }
         self.draw_net_status(buf, area, 1);
-        let keys = if self.guesting() { "Left/Right: choose    the host starts the race    Esc: back" } else { "Left/Right: choose    Enter: course    Esc: back" };
+        let keys = if self.guesting() { "Left/Right: choose    the host starts the race    Esc: back" } else { "Left/Right: choose    Enter: course    Esc: back    F1: help" };
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, area.height.saturating_sub(3), keys, accent_style());
         let pos = format!("{} of {}", self.pick + 1, ROSTER.len());
         put_text(buf, area.width.saturating_sub(pos.len() as u16) / 2, area.height.saturating_sub(4), &pos, panel_style());
     }
 
     fn draw_title_hud(&self, buf: &mut Buffer, area: Rect, input: &Input) {
-        let k = ((self.t / 3.0) as usize) % ROSTER.len();
-        let who = &ROSTER[k];
-        let name = format!(" {} on {} ", who.name, who.ride_name);
-        let y_name = (area.height as f32 * 0.70) as u16;
-        let c = who.colour();
-        put_text(buf, area.width.saturating_sub(name.len() as u16) / 2, y_name, &name, Style::default().fg(Color::Rgb(c.0, c.1, c.2)).bg(Color::Rgb(14, 18, 44)).add_modifier(Modifier::BOLD));
-        let tag = ["Christmas morning. Santa's asleep. The elves have found the keys.", "He is NOT going to be happy."];
-        let y0 = (area.height as f32 * 0.30) as u16;
-        for (i, l) in tag.iter().enumerate() {
-            put_text(buf, area.width.saturating_sub(l.chars().count() as u16) / 2, y0 + i as u16, l, panel_style());
-        }
         self.draw_net_status(buf, area, 1);
         let y1 = area.height.saturating_sub(4);
         let level = format!("Rivals:  {}  (Up/Down)", DIFFICULTY[self.level].0);
         put_text(buf, area.width.saturating_sub(level.len() as u16) / 2, y1.saturating_sub(1), &level, panel_style());
-        let keys = "Enter or Space: choose racer    H: controls    Esc: quit";
+        let keys = "Enter or Space: choose racer    F1 or H: help    Esc: quit";
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, y1 + 1, keys, panel_style());
         if !input.exact {
             let l = "(no kitty keyboard here: Up starts the gas, Down stops it, Space toggles drift)";
@@ -963,7 +981,7 @@ impl Game {
             put_text(buf, area.width - mw - 1, mh, &format!("{:^w$}", r.track.name, w = mw as usize), panel_style());
         }
         if self.paused {
-            draw_box(buf, area, &["PAUSED", "", "Enter/P  resume", "R        restart", "Esc      quit to title", "H        controls"]);
+            draw_box(buf, area, &["PAUSED", "", "Enter/P  resume", "R        restart", "Esc      quit to title", "F1 or H  help"]);
         }
         if let Some(total) = p.finished {
             if r.time() - total > 1.5 {
@@ -1245,7 +1263,7 @@ fn draw_box(buf: &mut Buffer, area: Rect, lines: &[&str]) {
 
 fn draw_help(buf: &mut Buffer, area: Rect, input: &Input) {
     let mut lines = vec![
-        "CONTROLS",
+        "HELP",
         "",
         "Left/Right or A/D   steer",
         "Up or W             gas",
@@ -1262,11 +1280,13 @@ fn draw_help(buf: &mut Buffer, area: Rect, input: &Input) {
         "mistletoe: hold it out and whoever comes close gets kissed.",
         "",
         "From lap 2 Santa comes after the leader in his snowplough.",
+        "Holes in the ice: steer round. Crevasses: hit the ramp fast and fly.",
+        "Conveyor belts carry you faster. Watch for shadows: presents incoming.",
         "",
         "Start: hit the gas as the 1 appears for a rocket start.",
         "",
         "Pad: stick or d-pad steer, A gas, B brake, R drift, X/Y/L item",
-        "P pause   R restart   Esc back   F8 sound   M music   H close this",
+        "P pause   R restart   Esc back   F8 sound   M music   F1/H close",
     ];
     if !input.exact {
         lines.insert(7, "(this terminal: Up latches gas on, Down off, Space toggles drift)");
@@ -1354,12 +1374,12 @@ mod tests {
         assert!(text.contains("The one to learn on"), "{text}");
         input.cmds.extend([Cmd::Left]);
         g.tick(&mut input);
-        assert_eq!(courses()[g.course].0, "The Workshop", "round to the last");
-        assert!(screen_text(&g, &input).contains("6 of 6"));
+        assert_eq!(courses()[g.course].0, "The Glacier", "round to the last");
+        assert!(screen_text(&g, &input).contains("7 of 7"));
         input.cmds.push(Cmd::Confirm);
         g.tick(&mut input);
         assert_eq!(g.phase, Phase::Race);
-        assert_eq!(g.race.track.name, "The Workshop");
+        assert_eq!(g.race.track.name, "The Glacier");
         assert_eq!(ROSTER[g.pick].name, "Sprocket", "still the racer chosen");
         let p = g.race.player().unwrap();
         assert_eq!(ROSTER[g.race.racers[p].who].name, "Sprocket");
@@ -1368,14 +1388,29 @@ mod tests {
     }
 
     #[test]
-    fn the_title_screen_shows_the_rivals_and_a_racer() {
+    fn the_title_screen_shows_the_rivals_and_the_keys() {
         let mut g = Game::new(Phase::Title, 1, 0, 1);
         let mut input = Input::new(true);
         input.cmds.push(Cmd::Down);
         g.tick(&mut input);
         let text = screen_text(&g, &input);
         assert!(text.contains("Rivals:  Easy"), "{text}");
-        assert!(text.contains(" on "));
+        assert!(text.contains("F1 or H: help"), "{text}");
+    }
+
+    #[test]
+    fn f1_opens_the_help_and_closes_it() {
+        use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let mut g = Game::new(Phase::Race, 0, 0, 1);
+        let mut input = Input::new(true);
+        let f1 = KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE);
+        input.on_key(f1, Instant::now());
+        g.tick(&mut input);
+        let text = screen_text(&g, &input);
+        assert!(text.contains("HELP") && text.contains("Crevasses"), "{text}");
+        input.on_key(f1, Instant::now());
+        g.tick(&mut input);
+        assert!(!screen_text(&g, &input).contains("Crevasses"));
     }
 
     #[test]

@@ -58,9 +58,13 @@ domain folklore only (no Rudolph: our reindeer have black noses).
 
 Playable (2026-10-05): two courses, six racers, items, Santa.
 
-- Splash/title screen: SLEIGHRIDE, each racer turning on a lit stage, a
-  course picker (Left/Right), difficulty (Up/Down), an autopilot race
-  behind it all
+- Splash/title screen: SLEIGHRIDE and the tagline ("CHRISTMAS MORNING.
+  SANTA'S ASLEEP. THE ELVES HAVE FOUND THE KEYS." / "HE IS NOT GOING TO
+  BE HAPPY.") all in the pixel lettering, stacked a sixth of the way down
+  and wrapped onto more lines in narrow windows; difficulty (Up/Down); an
+  autopilot race dimmed behind it all. The turning racer showcase came
+  out (2026-10-06, David: "a little confusing"); the racer page still has
+  its stage
 - Difficulty sets the rivals' pace: Easy 93%, Normal 96% (default), Hard
   100%. The rivals drift perfectly, so full pace is a hard race for a
   person. Measured with the autopilot driving the player from the back:
@@ -71,8 +75,9 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 - Animation, paced by distance travelled (`render::frame_of`, 4 frames per
   cycle built by `Model::frames`): reindeer gallop and bound, skiers skate
   with poles planting, snowmobile and plough tracks roll, hat bobbles swing
-- Courses (six; `track::courses()`): **Thin Ice**, **Candy Cane
-  Forest**, **Gingerbread Village** and **The Workshop** (see Next steps),
+- Courses (seven; `track::courses()`): **Thin Ice**, **Candy Cane
+  Forest**, **Gingerbread Village**, **The Workshop** and **The Glacier**
+  (see Next steps),
   **Frozen Lake** (aurora night, ice cracks, two ice patches; hills and two
   kickers, see below; the learner course, so no weather or wildlife since
   2026-10-06, David: "we have overloaded the first track") and
@@ -138,6 +143,10 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
 
 ## Decisions
 
+- **The lens follows the window's height** (`View::new`: f = 0.68 h,
+  capped at 0.62 w for tall, narrow windows), so a wider window shows more
+  to the sides at the same size. It used to follow the width, and on a very
+  wide screen everything zoomed in (David, 2026-10-06)
 - **Perspective: Mode 7 chase camera**, as in Mario Kart: Super Circuit
   (GBA) and Super Mario Kart (SNES). The track is a flat picture seen from a
   camera behind and above the sleigh; each screen row below the horizon is
@@ -215,7 +224,9 @@ boosts, bumps, start result) and a snapshot every 500 ms.
   course page: Left/Right picks the course (shown live behind the page,
   with its map and a line on what's on it), Up/Down the rivals, Enter
   races, Esc goes back
-- P pause, R restart, Esc back, H help, F8 sound on/off, M music on/off
+- P pause, R restart, Esc back, F1 or H (or ?) help, F8 sound on/off, M
+  music on/off. The help page covers keys, drifting, items, Santa and the
+  hazards. GNOME Terminal may take F1 for its own help; H always works
 - Without the kitty keyboard protocol a terminal only repeats the last key
   held, so gas can't be held while steering: there Up latches the gas on,
   Down turns it off, and Space toggles a drift
@@ -340,8 +351,20 @@ David wants all of these (2026-10-06), roughly in this order:
         ~6 s per stand one lobs a present at an oncoming racer, aimed at
         where it will be give or take 6 units, landing in 1.1 s with its
         shadow showing where; bursts like a thrown present
-      More course ideas: a glacier under the northern lights. The loop moves on to
-      weather after these two; more courses can come back any time
+      - [x] **The Glacier** (2026-10-06): night under the northern lights
+        (`GLACIER` theme), packed snow on blue ice, seracs (jagged ice
+        spires, `Theme::seracs`) instead of pines, four ice patches,
+        blizzards. A long climb to 32 high, then a fast run down over two
+        **crevasses** (`Relief::crevasses`, `Track::in_crevasse`): a chasm
+        14 deep right across the road and 8 past its edges, a kicker just
+        before each and marker poles at both lips. At speed you sail over;
+        drop below the lip (come at it slow) and it's "CREVASSE!", hauled
+        out 100+ units back, before the kicker, with room to get up to
+        speed again. From up the road the chasm hides behind the kicker
+        (the road falls away), so the poles and the ramp's chevrons are the
+        warning. Every rival finishes; balance holds across all seven
+      More course ideas welcome; a track format instead of control points
+      in code is still open
 - [x] Weather (2026-10-06, `weather.rs`): blizzards on Thin Ice (Frozen
       Lake had them too until it became the learner course): a 22 s calm at the start, then building 6 s, blowing
       16-26 s, easing 6 s, calm 40-70 s, repeat. While it blows: sight

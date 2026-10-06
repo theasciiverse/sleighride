@@ -191,7 +191,10 @@ pub struct View {
 impl View {
     pub fn new(cv: &Canvas) -> View {
         let (w, h) = (cv.w as f32, cv.h as f32);
-        let f = (w * 0.62).min(h * 1.7);
+        // the lens follows the height, so a wider window shows more to the
+        // sides at the same size instead of zooming in; the width only
+        // limits it in tall, narrow windows
+        let f = (h * 0.68).min(w * 0.62);
         let hz = (h * 0.34).round();
         // the sleigh's runners sit near the bottom of the screen, with room
         // below for the view to tip on a climb
@@ -331,6 +334,23 @@ fn ground_colour(track: &Track, x: f32, y: f32) -> Rgb {
             return shade(c, fine / 2);
         }
         return lake(th, x, y);
+    }
+    // the crevasse, and the far wall just past it (the terrain draws a wall
+    // in the colour of the cell at its top, so that cell is ice too)
+    let crevasse = (!track.crevasses.is_empty() && d <= half + 8.0)
+        .then(|| {
+            let n = track.len();
+            track.crevasses.iter().find_map(|&(s0, len)| {
+                let k = (i + n - s0) % n;
+                (k < len + 2).then_some((k, len))
+            })
+        })
+        .flatten();
+    if let Some((k, len)) = crevasse {
+        // dark blue ice walls going down, a pale rim at the near lip and
+        // along the top of the far wall, so it reads as a gap up the road
+        let c = if k == 0 || k == len + 1 { (190, 232, 250) } else { mix((14, 40, 86), (50, 104, 166), noise(x / 3.0, y / 3.0) * 0.7) };
+        return shade(c, fine / 2);
     }
     if !track.inlets.is_empty() && track.in_inlet(i) {
         // the inlet: an arm of the lake's cream cutting right across, out
@@ -554,6 +574,39 @@ fn cane(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog
             cv.put(qx as i32, qy as i32, stripe(t as f32, h - hook + a * hook));
         }
         let _ = (px, py);
+    }
+}
+
+/// A serac: a jagged spire of glacier ice, lit on one side.
+#[allow(clippy::too_many_arguments)]
+fn serac(cv: &mut Canvas, sx: f32, sy: f32, scale: f32, size: f32, seed: f32, fog: f32, haze: Rgb) {
+    let h = TREE_H * size * scale * (0.8 + 0.4 * (seed * 1.3).sin().abs());
+    if h < 1.0 {
+        return;
+    }
+    let w = h * 0.5;
+    let lean = (seed * 0.9).sin() * 0.25;
+    let top = sy - h;
+    for y in top.floor() as i32..sy.ceil() as i32 {
+        let fy = ((y as f32 + 0.5 - top) / h).clamp(0.0, 1.0);
+        // a broken, stepped outline rather than a clean cone
+        let step = ((fy * 5.0).floor() * 1.7 + seed).sin() * 0.18;
+        let half = w * 0.5 * (fy * (0.85 + step)).max(0.08);
+        let cx = sx + lean * h * (1.0 - fy);
+        for x in (cx - half).floor() as i32..(cx + half).ceil() as i32 {
+            let across = (x as f32 + 0.5 - cx) / half.max(0.5);
+            let crack = ((x as f32 * 0.7 + y as f32 * 0.3 + seed * 5.0).sin() * 9.0).abs() < 0.3;
+            let c = if crack {
+                (60, 120, 180)
+            } else if across < -0.2 {
+                (226, 244, 255)
+            } else if across < 0.4 {
+                (150, 206, 238)
+            } else {
+                (96, 150, 206)
+            };
+            cv.put(x, y, mix(c, haze, fog));
+        }
     }
 }
 
@@ -1152,6 +1205,8 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 if sx + w > 0.0 && sx - w < v.w {
                     if th.indoors {
                         toy(cv, sx, sy, scale, size, x + y * 3.0, fog, haze);
+                    } else if th.seracs {
+                        serac(cv, sx, sy, scale, size, x * 0.37 + y, fog, haze);
                     } else if th.canes {
                         cane(cv, sx, sy, scale, size, x, fog, haze);
                     } else if th.houses && hash(x as i32, y as i32) % 5 < 3 {
@@ -1551,5 +1606,19 @@ pub fn surface_name(s: Surface) -> &'static str {
         Surface::Cream => "cream",
         Surface::BlackIce => "black ice",
         Surface::Conveyor => "conveyor",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_wider_window_shows_more_not_bigger() {
+        let normal = View::new(&Canvas::new(160, 75));
+        let wide = View::new(&Canvas::new(250, 70));
+        let (a, b) = (normal.f / 150.0, wide.f / 140.0);
+        assert!((a - b).abs() < 0.02, "scale {a} vs {b}");
+        assert!((normal.cam_h - wide.cam_h).abs() / normal.cam_h < 0.05, "same camera height");
     }
 }
