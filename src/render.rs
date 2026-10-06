@@ -585,6 +585,31 @@ fn racer(cv: &mut Canvas, v: &View, cam: &Camera, track: &Track, r: &Racer, haze
             heart(cv, x, y, pose.px.max(1.0).min(3.0) as i32, 1.0 - rise);
         }
     }
+    if r.clipped > 0.0 {
+        let s = (pose.px * 2.0).max(2.0);
+        let since = crate::race::CLIP_TIME - r.clipped;
+        if since < 0.5 {
+            // Santa's mitten swinging in from the right, round the ear
+            let k = since / 0.5;
+            let x = head.0 + (1.0 - k) * 12.0 * s - 1.0 * s;
+            let y = head.1 + 4.0 * s - (k * std::f32::consts::PI).sin() * 3.0 * s;
+            mitten(cv, x, y, s as i32);
+        }
+        // stars going round the dazed head
+        let st = (s / 2.0).max(1.0) as i32;
+        for j in 0..4 {
+            let a = time * 6.0 + j as f32 * std::f32::consts::FRAC_PI_2;
+            let (x, y) = (head.0 + a.cos() * 5.0 * s, head.1 - 1.0 * s + a.sin() * 1.5 * s);
+            let c = if j % 2 == 0 { (255, 230, 90) } else { (255, 255, 255) };
+            for (dx, dy) in [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)] {
+                for q in 0..st {
+                    for w in 0..st {
+                        cv.put(x as i32 + dx * st + q, y as i32 + dy * st + w, c);
+                    }
+                }
+            }
+        }
+    }
     if r.tangled > 0.0 {
         let frame = (time * 24.0) as i32;
         let reach = (12.0 * pose.px).max(3.0) as i32;
@@ -621,6 +646,25 @@ fn sprig(cv: &mut Canvas, x: f32, y: f32, px: f32, time: f32) {
         for py in 0..s as i32 {
             for qx in 0..s as i32 {
                 cv.put(bx as i32 + qx, by as i32 + py, c);
+            }
+        }
+    }
+}
+
+/// Santa's big white mitten with its red cuff.
+fn mitten(cv: &mut Canvas, x: f32, y: f32, s: i32) {
+    const M: [&str; 6] = [".WWW.WW", "WWWWWWW", "WWWWWWW", "WWWWWW.", ".WWWW..", ".RRRR.."];
+    for (ry, row) in M.iter().enumerate() {
+        for (rx, ch) in row.bytes().enumerate() {
+            let c = match ch {
+                b'W' => (250, 250, 252),
+                b'R' => (214, 38, 46),
+                _ => continue,
+            };
+            for py in 0..s {
+                for px in 0..s {
+                    cv.put(x as i32 + rx as i32 * s + px, y as i32 + ry as i32 * s + py, c);
+                }
             }
         }
     }
@@ -842,9 +886,38 @@ fn glyph(c: char) -> [u8; 5] {
 }
 
 /// Big outlined pixel text, centred across the canvas around row `cy`.
+/// Big text centred across the canvas around row `cy`; lines split on
+/// '|' stack downward, and the scale shrinks until the widest line fits.
 pub fn big_text(cv: &mut Canvas, text: &str, cy: i32, scale: i32, fill: Rgb) {
-    let width = big_width(text, scale);
-    big_text_at(cv, text, (cv.w as i32 - width) / 2, cy - 5 * scale / 2, scale, fill);
+    let lines: Vec<&str> = text.split('|').collect();
+    let mut scale = scale.max(1);
+    while scale > 1 && lines.iter().any(|l| big_width(l, scale) + 4 > cv.w as i32) {
+        scale -= 1;
+    }
+    let step = 7 * scale;
+    let top = cy - (lines.len() as i32 * step) / 2;
+    for (i, l) in lines.iter().enumerate() {
+        let width = big_width(l, scale);
+        big_text_at(cv, l, (cv.w as i32 - width) / 2, top + i as i32 * step, scale, fill);
+    }
+}
+
+/// Pixel-font text with no outline, as ink on paper.
+pub fn ink_text_at(cv: &mut Canvas, text: &str, x0: i32, y0: i32, scale: i32, ink: Rgb) {
+    for (ci, ch) in text.chars().enumerate() {
+        let g = glyph(ch);
+        for (gy, row) in g.iter().enumerate() {
+            for gx in 0..3 {
+                if row >> (2 - gx) & 1 == 1 {
+                    for py in 0..scale {
+                        for px in 0..scale {
+                            cv.put(x0 + (ci as i32 * 4 + gx) * scale + px, y0 + gy as i32 * scale + py, ink);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn big_width(text: &str, scale: i32) -> i32 {

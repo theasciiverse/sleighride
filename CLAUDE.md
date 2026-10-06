@@ -26,8 +26,15 @@ snowplough, and hunts whoever is leading: he has a list, he is checking
 it twice, and whoever is out in front is clearly the ringleader.
 
 The story is four pages (`game::STORY`) shown once per run between the
-title and the racer choice. Santa's lines: "SANTA'S AWAKE!" on his first
-appearance, "SANTA'S BACK!" after, "NAUGHTY LIST!" when he catches you,
+title and the racer choice, each over its own still picture
+(`story.rs`): Santa asleep by the workshop fire; Bob with the keys in the
+garage; the empty garage at dawn with only the plough; the NAUGHTY list
+being ticked, twice. The text fades in word by word, centred low.
+
+When Santa catches the ringleader he gives them a good clip round the ear
+(an oversized mitten swings in, dizzy stars), "YOU'RE ON SANTA'S NAUGHTY
+LIST!", then rumbles on past for two seconds before leaving. His other
+lines: "SANTA'S AWAKE!" on his first appearance, "SANTA'S BACK!" after,
 and a verdict on the results card by place and catches (`santa_says`).
 
 No copyrighted characters: generic winter-fantasy archetypes and public
@@ -222,10 +229,23 @@ A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
 
 ## Next steps
 
+David wants all of these (2026-10-06), roughly in this order:
+
+- [ ] Sound (rodio, synthesised, as in the sibling games): engine whine by
+      speed, sleigh bells, drift sparks, landing crunch, item sounds,
+      Santa's horn when he's after you, the clip, music
+- [ ] Birds: crows lifting off the pines as you pass, a flock wheeling
+      across the sky
+- [ ] Hills for Eggnogg: a big drop into the eggnog basin, a jump over a
+      creamy inlet
+- [ ] Many more courses (and a track format instead of control points in
+      code)
+- [ ] Weather: blizzards (shorter sight, driving snow, gusts), snow
+      tornadoes that wander and spin you out
+- [ ] Wildlife: a penguin line crossing the road, a polar bear that
+      swipes (and eyes the penguins)
 - [ ] Network play: LAN and internet over iroh, as Panzer and Tetrix do
-- [ ] Weather and wildlife hazards (above)
-- [ ] Sound (rodio, synthesised, as in the sibling games)
-- [ ] Battle mode: in or out for v1?
+- [ ] Folklore racers and hazards (see the backlog)
 
 ## History
 

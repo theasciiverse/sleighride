@@ -28,7 +28,7 @@ const SNOWMOBILE: Stats = Stats { top: 64.2, accel: 1.0, turn: 1.8, grip: 7.5, c
 /// Low and slippery: fast, light, charges drifts quickly.
 const TOBOGGAN: Stats = Stats { top: 63.2, accel: 1.2, turn: 1.9, grip: 8.0, charge: 1.1, weight: 0.7 };
 /// Narrow and twitchy: the highest top speed, turns sharply, grips little.
-const SKIS: Stats = Stats { top: 65.2, accel: 1.1, turn: 2.3, grip: 6.5, charge: 1.0, weight: 0.6 };
+const SKIS: Stats = Stats { top: 64.9, accel: 1.1, turn: 2.3, grip: 6.5, charge: 1.0, weight: 0.6 };
 /// Santa: much faster than anyone, and nothing moves him.
 pub const PLOUGH: Stats = Stats { top: 80.0, accel: 1.6, turn: 2.6, grip: 12.0, charge: 0.0, weight: 4.0 };
 

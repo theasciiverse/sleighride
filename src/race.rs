@@ -34,6 +34,8 @@ const ROULETTE: f32 = 1.0;
 const SANTA_REST: f32 = 22.0;
 const MISTLETOE_TIME: f32 = 8.0;
 const KISS_R: f32 = 5.0;
+/// How long a clip round the ear shows: the swing, then the stars.
+pub const CLIP_TIME: f32 = 1.8;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Item {
@@ -92,6 +94,8 @@ pub struct Racer {
     pub smooched: f32,
     /// Times Santa has caught this racer.
     pub caught: u8,
+    /// A clip round the ear just landed: the mitten, then dizzy stars.
+    pub clipped: f32,
 }
 
 impl Racer {
@@ -147,6 +151,8 @@ pub struct Santa {
     pub rest: f32,
     pub idx: usize,
     pub visits: u32,
+    /// After a catch he rumbles on past for a moment before leaving.
+    pub gloat: f32,
 }
 
 /// Things that happened this step, for messages and effects.
@@ -238,6 +244,7 @@ impl Race {
                 mistletoe: 0.0,
                 smooched: 0.0,
                 caught: 0,
+                clipped: 0.0,
             });
         }
         // three rows of present boxes across the road
@@ -259,7 +266,7 @@ impl Race {
             shots: Vec::new(),
             traps: Vec::new(),
             boxes,
-            santa: Santa { kart: santa, active: false, target: None, rest: 0.0, idx: 0, visits: 0 },
+            santa: Santa { kart: santa, active: false, target: None, rest: 0.0, idx: 0, visits: 0, gloat: 0.0 },
             notes: Vec::new(),
             order: Vec::new(),
             autopilot: false,
@@ -356,6 +363,7 @@ impl Race {
             r.last = c;
             r.tangled = (r.tangled - DT).max(0.0);
             r.smooched = (r.smooched - DT).max(0.0);
+            r.clipped = (r.clipped - DT).max(0.0);
             r.mistletoe = (r.mistletoe - DT).max(0.0);
             let target = if r.kart.drift != 0 { r.kart.drift as f32 * 0.9 } else { c.steer * 0.5 };
             r.lean += (target - r.lean) * (10.0 * DT).min(1.0);
@@ -718,6 +726,19 @@ impl Race {
             }
             return;
         }
+        if self.santa.gloat > 0.0 {
+            // drive on along the road, pleased with himself, then go
+            self.santa.gloat -= DT;
+            let c = auto::drive_santa_on(self);
+            self.santa.kart.step(c, &self.track);
+            if let Some(i) = self.track.idx(self.santa.kart.x, self.santa.kart.y) {
+                self.santa.idx = i;
+            }
+            if self.santa.gloat <= 0.0 {
+                self.santa.active = false;
+            }
+            return;
+        }
         // hunt whoever leads among those still racing
         let target = self.racers.iter().enumerate().filter(|(_, r)| r.finished.is_none()).min_by_key(|(_, r)| r.place).map(|(i, _)| i);
         self.santa.target = target;
@@ -739,10 +760,12 @@ impl Race {
                     k.hit(1.6, 2.0);
                 }
                 self.racers[i].caught += 1;
+                self.racers[i].clipped = CLIP_TIME;
                 self.notes.push(Note::SantaCaught(i));
                 self.notes.push(Note::Hit(i, None));
                 log::info!("Santa caught {}", ROSTER[self.racers[i].who].name);
-                self.santa.active = false;
+                self.santa.gloat = 2.0;
+                self.santa.target = None;
                 self.santa.rest = SANTA_REST;
                 return;
             }

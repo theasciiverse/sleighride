@@ -4,6 +4,7 @@ mod input;
 mod kart;
 mod model;
 mod roster;
+mod story;
 mod race;
 mod render;
 mod track;
@@ -47,10 +48,17 @@ fn main() -> io::Result<()> {
         // ...or ending in "a": wait for the racer to be in the air
         let wait_drift = secs_arg.ends_with('d');
         let wait_air = secs_arg.ends_with('a');
-        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a']).parse().unwrap_or(10.0));
+        // ...or "c": wait for Santa to have just caught the racer
+        let wait_clip = secs_arg.ends_with('c');
+        let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
+        }
+        if let Some(page) = args.iter().position(|a| a == "--story").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()) {
+            g.show_story(page.max(1) - 1, secs);
+            std::fs::write(get(1), g.shot(cols, rows).ppm())?;
+            return Ok(());
         }
         g.run_auto(secs);
         let me = g.race.player().unwrap_or(pick);
@@ -58,6 +66,9 @@ fn main() -> io::Result<()> {
             g.run_auto(DT);
         }
         while wait_air && !(g.race.racers[me].kart.air && g.race.racers[me].kart.vz < 2.0) && g.race.clock < 600.0 {
+            g.run_auto(DT);
+        }
+        while wait_clip && !(g.race.racers[me].clipped > 0.0 && g.race.racers[me].clipped < race::CLIP_TIME - 0.2) && g.race.clock < 600.0 {
             g.run_auto(DT);
         }
         std::fs::write(get(1), g.shot(cols, rows).ppm())?;

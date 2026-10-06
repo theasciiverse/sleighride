@@ -155,3 +155,12 @@ pub fn drive_santa(r: &Race, target: usize) -> Controls {
     c.drift = false;
     c
 }
+
+/// Santa after a catch: on along the road, easing off.
+pub fn drive_santa_on(r: &Race) -> Controls {
+    let s = &r.santa.kart;
+    let mut c = follow(r, s.x, s.y, s.heading, s.speed, 0, r.santa.idx, 6.0);
+    c.drift = false;
+    c.gas = s.speed < 45.0;
+    c
+}

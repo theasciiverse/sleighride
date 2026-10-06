@@ -27,10 +27,16 @@ const STORY: [&str; 4] = [
     "Christmas morning, six o'clock. Every present delivered, every chimney climbed. Santa kicks off his boots, sinks into his armchair by the workshop fire, and is snoring before his cocoa has cooled.",
     "The elves have worked every single day since last January. Bob holds up a jangling ring of keys: the big sleigh, the reindeer stables, the snowmobile shed. \"One lap of the lake,\" he whispers. \"He'll never know.\"",
     "Three laps later Santa wakes to an empty garage. Only the snowplough is left. His cocoa is cold. His boots are on the wrong feet.",
-    "He has a list. He is checking it twice. And whoever is out in front is clearly the ringleader.",
+    "He has a list. He is checking it twice. And whoever is out in front is clearly the ringleader, and is getting a good clip round the ear.",
 ];
-/// Characters a second as the story types itself out.
-const TYPE_SPEED: f32 = 70.0;
+/// Words a second as the story fades in, and how long each word takes.
+const WORDS_PER_SEC: f32 = 4.0;
+const WORD_FADE: f32 = 0.8;
+
+/// Seconds until the whole page is showing.
+fn page_time(page: usize) -> f32 {
+    STORY[page].split(' ').count() as f32 / WORDS_PER_SEC + WORD_FADE
+}
 
 /// Difficulty: its name and the rivals' pace (a share of their top speed).
 /// The rivals drift perfectly, so at full pace they are a hard race; a
@@ -145,7 +151,7 @@ impl Game {
                 }
                 (Phase::Title, Cmd::Confirm) => self.screen(Phase::Select),
                 (Phase::Story, Cmd::Confirm) => {
-                    if (self.t * TYPE_SPEED) < STORY[self.page].len() as f32 {
+                    if self.t < page_time(self.page) {
                         // show the whole page first
                         self.t = 1e3;
                     } else if self.page + 1 < STORY.len() {
@@ -245,7 +251,7 @@ impl Game {
                     let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
                     self.flash = Some((text.into(), 2.0, SANTA_COLOUR));
                 }
-                Note::SantaCaught(i) if i == me && playing => self.flash = Some(("NAUGHTY LIST!".into(), 1.8, SANTA_COLOUR)),
+                Note::SantaCaught(i) if i == me && playing => self.flash = Some(("YOU'RE ON|SANTA'S|NAUGHTY LIST!".into(), 2.2, SANTA_COLOUR)),
                 Note::Kiss(a, b) if (a == me || b == me) && playing => self.flash = Some(("SMOOCH!".into(), 1.0, (255, 110, 160))),
                 Note::Got(i, item) if i == me && playing => log::info!("got {item:?}"),
                 _ => {}
@@ -320,7 +326,7 @@ impl Game {
         let big = ((cv.w as i32) / 70).clamp(1, 4);
         match self.phase {
             Phase::Title => self.draw_title_canvas(cv, big),
-            Phase::Story => dim(cv),
+            Phase::Story => {}
             Phase::Select => self.draw_select_canvas(cv, big),
             Phase::Race => self.draw_race_canvas(cv, big),
         }
@@ -328,7 +334,14 @@ impl Game {
 
     pub fn draw(&self, f: &mut Frame, input: &Input) {
         let area = f.area();
-        let mut cv = self.scene_canvas(area.width, area.height);
+        let mut cv = if self.phase == Phase::Story {
+            // the story has its own pictures, not the race
+            let mut cv = Canvas::new(area.width, area.height);
+            crate::story::draw(&mut cv, self.page, self.t);
+            cv
+        } else {
+            self.scene_canvas(area.width, area.height)
+        };
         self.overlay(&mut cv);
         let buf = f.buffer_mut();
         cv.flush(buf, area);
@@ -358,32 +371,37 @@ impl Game {
     }
 
     fn draw_story(&self, buf: &mut Buffer, area: Rect) {
-        let width = (area.width as usize).saturating_sub(8).clamp(20, 64);
-        let shown = (self.t * TYPE_SPEED) as usize;
-        let text: String = STORY[self.page].chars().take(shown).collect();
-        // wrap by words into lines
-        let mut lines: Vec<String> = vec![String::new()];
-        for word in text.split(' ') {
-            let last = lines.last_mut().unwrap();
-            if !last.is_empty() && last.chars().count() + 1 + word.chars().count() > width {
-                lines.push(word.to_string());
-            } else {
-                if !last.is_empty() {
-                    last.push(' ');
-                }
-                last.push_str(word);
+        let width = (area.width as usize).saturating_sub(10).clamp(20, 60);
+        // wrap by words into lines, keeping each word's place in the page
+        let mut lines: Vec<Vec<(usize, &str)>> = vec![Vec::new()];
+        let mut len = 0;
+        for (k, word) in STORY[self.page].split(' ').enumerate() {
+            if len > 0 && len + 1 + word.chars().count() > width {
+                lines.push(Vec::new());
+                len = 0;
+            }
+            len += word.chars().count() + if len > 0 { 1 } else { 0 };
+            lines.last_mut().unwrap().push((k, word));
+        }
+        let band = (lines.len() + 2) as u16;
+        let y0 = (area.height as f32 * 0.66) as u16;
+        let y0 = y0.min(area.height.saturating_sub(band + 2));
+        let bg = (14u8, 18u8, 44u8);
+        for y in 0..band {
+            put_text(buf, 0, y0 + y, &" ".repeat(area.width as usize), panel_style());
+        }
+        for (i, line) in lines.iter().enumerate() {
+            let text_len: usize = line.iter().map(|(_, w)| w.chars().count()).sum::<usize>() + line.len().saturating_sub(1);
+            let mut x = area.width.saturating_sub(text_len as u16) / 2;
+            for (k, word) in line {
+                let a = ((self.t - *k as f32 / WORDS_PER_SEC) / WORD_FADE).clamp(0.0, 1.0);
+                let c = render::mix(bg, (240, 244, 255), a);
+                put_text(buf, x, y0 + 1 + i as u16, word, Style::default().fg(Color::Rgb(c.0, c.1, c.2)).bg(Color::Rgb(bg.0, bg.1, bg.2)));
+                x += word.chars().count() as u16 + 1;
             }
         }
-        let x0 = area.width.saturating_sub(width as u16 + 4) / 2;
-        let y0 = area.height.saturating_sub(10) / 2;
-        for y in 0..10u16 {
-            put_text(buf, x0, y0 + y, &" ".repeat(width + 4), panel_style());
-        }
-        for (i, l) in lines.iter().enumerate() {
-            put_text(buf, x0 + 2, y0 + 1 + i as u16, l, panel_style());
-        }
-        let foot = format!("{} / {}   Enter: next   Esc: skip", self.page + 1, STORY.len());
-        put_text(buf, x0 + 2, y0 + 8, &foot, accent_style());
+        let foot = format!("{} / {}    Enter: next    Esc: skip", self.page + 1, STORY.len());
+        put_text(buf, area.width.saturating_sub(foot.len() as u16) / 2, area.height.saturating_sub(1), &foot, accent_style());
     }
 
     fn draw_select_hud(&self, buf: &mut Buffer, area: Rect) {
@@ -453,14 +471,18 @@ impl Game {
             big_text(cv, "FINISH", ch / 4, big + 1, (255, 210, 80));
         } else if p.wrong_way > 0.8 && (r.clock * 3.0) as i32 % 2 == 0 {
             big_text(cv, "WRONG WAY", ch / 4, big, (240, 80, 70));
-        } else if r.santa.active && r.santa.target == Some(me) && (r.clock * 2.5) as i32 % 2 == 0 {
+        } else if r.santa.active && r.santa.target == Some(me) && self.flash.is_none() && (r.clock * 2.5) as i32 % 2 == 0 {
             big_text(cv, "SANTA'S AFTER YOU!", ch / 4, big, SANTA_COLOUR);
         } else if p.lap == LAPS && r.lap_time(me) < 2.0 && !p.lap_times.is_empty() {
             big_text(cv, "FINAL LAP", ch / 4, big, (255, 210, 80));
         }
         if let Some((text, _, col)) = &self.flash {
             if !r.counting_down() && r.time() >= 0.8 {
-                big_text(cv, text, ch * 2 / 5, big, *col);
+                // long messages sit high, just under the item slot, so
+                // the scene stays in view
+                let lines = text.split('|').count() as i32;
+                let cy = if lines > 1 { item_box_px(cv.h) + 6 + lines * 7 * big / 2 } else { ch * 2 / 5 };
+                big_text(cv, text, cy, big, *col);
             }
         }
         // item slot, top centre
@@ -626,9 +648,25 @@ impl Game {
 
     /// The scene with its pixel overlays (no HUD text), for a screenshot.
     pub fn shot(&self, cols: u16, rows: u16) -> Canvas {
-        let mut cv = self.scene_canvas(cols, rows);
-        self.overlay(&mut cv);
+        let mut cv = if self.phase == Phase::Story {
+            let mut cv = Canvas::new(cols, rows);
+            crate::story::draw(&mut cv, self.page, self.t);
+            cv
+        } else {
+            self.scene_canvas(cols, rows)
+        };
+        // SLEIGHRIDE_SCENE_ONLY=1: the world alone, no banners
+        if std::env::var("SLEIGHRIDE_SCENE_ONLY").is_err() {
+            self.overlay(&mut cv);
+        }
         cv
+    }
+
+    /// Show a story page, for screenshots.
+    pub fn show_story(&mut self, page: usize, t: f32) {
+        self.phase = Phase::Story;
+        self.page = page.min(STORY.len() - 1);
+        self.t = t;
     }
 
     /// Advance on autopilot, for screenshots and tests.
@@ -802,13 +840,18 @@ mod tests {
         input.cmds.push(Cmd::Confirm);
         g.tick(&mut input);
         assert_eq!(g.phase, Phase::Story, "the story comes first");
-        assert!(screen_text(&g, &input).contains("1 / 4"));
-        // Enter fills the page, then turns it; four pages
-        for _ in 0..8 {
+        g.t = 30.0;
+        let text = screen_text(&g, &input);
+        assert!(text.contains("1 / 4"), "{text}");
+        assert!(text.contains("snoring"), "{text}");
+        // Enter fills a page, then turns it; four pages
+        let mut presses = 0;
+        while g.phase == Phase::Story && presses < 12 {
             input.cmds.push(Cmd::Confirm);
             g.tick(&mut input);
+            presses += 1;
         }
-        assert_eq!(g.phase, Phase::Select);
+        assert_eq!(g.phase, Phase::Select, "after {presses} presses");
         input.cmds.extend([Cmd::Right, Cmd::Right]);
         g.tick(&mut input);
         assert_eq!(ROSTER[g.pick].name, "Sprocket");

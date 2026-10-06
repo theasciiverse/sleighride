@@ -480,6 +480,57 @@ impl Model {
         Model { voxels, pivot, reach, size, sparks }
     }
 
+    /// Santa asleep in his armchair, boots kicked off, in his socks.
+    pub fn santa_armchair() -> Model {
+        let mut g = Grid::new();
+        const VELVET: Rgb = (150, 30, 44);
+        // legs, seat, back and arms of the chair
+        for (x, y) in [(3, -8), (3, 8), (17, -8), (17, 8)] {
+            g.block((x, x), (y, y), (0, 2), WOOD_DARK);
+        }
+        g.block((2, 18), (-8, 8), (3, 6), VELVET);
+        g.block((1, 4), (-8, 8), (3, 21), VELVET);
+        g.block((1, 4), (-7, 7), (21, 22), darker(VELVET));
+        for side in [-9, 9] {
+            g.block((2, 17), (side, side), (3, 11), VELVET);
+            g.block((2, 18), (side, side), (11, 12), darker(VELVET));
+        }
+        // Santa, sunk in, head lolling
+        g.santa(9, 6);
+        // legs out over the seat edge, socks on, toes up
+        for side in [-3, 3] {
+            g.block((14, 21), (side - 1, side + 1), (6, 8), RED);
+            g.block((21, 23), (side - 1, side + 1), (1, 7), RED);
+            g.block((23, 25), (side - 1, side + 1), (0, 2), WHITE);
+        }
+        // the boots, kicked off
+        g.block((26, 29), (-7, -5), (0, 2), BLACK);
+        g.block((27, 28), (-7, -5), (3, 5), BLACK);
+        g.block((25, 28), (6, 9), (0, 2), BLACK);
+        Model::finish(g, 12.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
+    /// An elf standing, one arm up holding a ring of keys.
+    pub fn elf_with_keys(e: &Elf) -> Model {
+        let mut g = Grid::new();
+        for side in [-2, 2] {
+            g.block((6, 7), (side - 1, side), (1, 5), darker(e.coat));
+            g.block((6, 8), (side - 1, side), (0, 0), BLACK);
+        }
+        g.elf(7, 6, 1, e, 0);
+        // the right arm raised, the ring of keys up high
+        g.line((7.0, 3.0, 9.0), (8.0, 4.0, 16.0), e.coat);
+        g.set(8, 4, 17, WHITE);
+        for k in 0..12 {
+            let a = k as f32 / 12.0 * std::f32::consts::TAU;
+            g.set((8.0 + 1.6 * a.cos()).round() as i32, 5, (19.0 + 1.6 * a.sin()).round() as i32, GOLD);
+        }
+        for (dx, len) in [(-1, 3), (0, 4), (1, 3)] {
+            g.line((8.0 + dx as f32, 5.0, 17.5), (8.0 + dx as f32 * 1.5, 5.0, 17.5 - len as f32), GOLD_DARK);
+        }
+        Model::finish(g, 7.0, 1.0, [[0.0, 0.0, 0.0]; 2])
+    }
+
     /// A wrapped present: a box with a ribbon cross and a bow on top.
     pub fn gift(paper: Rgb, ribbon: Rgb) -> Model {
         let mut g = Grid::new();
