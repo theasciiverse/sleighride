@@ -41,7 +41,7 @@ fn main() -> io::Result<()> {
              Sleighride: kart racing with Santa's runaway helpers. In game, H shows the controls.\n\
              --race                      skip the title screen\n\
              --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest, 5 Gingerbread Village, 6 The Workshop\n\
-             --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper or Nutmeg\n\
+             --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper, Nutmeg, Tomte or Befana\n\
              --mute                      no sound (F8 toggles sound, M the music)\n\
              --host                      host a race others can join (local network or internet)\n\
              --join                      look for races on the local network\n\
@@ -76,6 +76,9 @@ fn main() -> io::Result<()> {
         let pounce = secs_arg.ends_with('K');
         let (cols, rows, secs) = (get(2).parse().unwrap_or(160), get(3).parse().unwrap_or(48), secs_arg.trim_end_matches(['d', 'a', 'c', 'i', 't', 'p', 'k', 'K']).parse().unwrap_or(10.0));
         let mut g = Game::new(start, course, pick, 1);
+        if args.iter().any(|a| a == "--courses") {
+            g.phase = Phase::Course;
+        }
         if args.iter().any(|a| a == "--select") {
             g.phase = Phase::Select;
         }

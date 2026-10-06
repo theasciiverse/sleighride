@@ -14,8 +14,10 @@
 //! arriving.
 //!
 //! Steering keys ease in rather than snapping to full lock: a tap turns
-//! gently, holding builds to full lock over about a quarter of a second,
-//! and letting go settles back quickly. The stick is analogue already.
+//! gently, holding builds to full lock over about half a second, and
+//! letting go settles back quickly. The stick is analogue already. Without
+//! key releases a lone press steers only briefly (`STEER_TAP`); holding
+//! carries on once the terminal's key repeat starts.
 
 use crate::kart::Controls;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode};
@@ -25,8 +27,12 @@ const PRE_REPEAT: Duration = Duration::from_millis(500);
 const REPEAT_GAP: Duration = Duration::from_millis(110);
 /// Keyboard steering: where a press starts, how fast it builds to full
 /// lock, and how fast it settles back (per second).
-const STEER_START: f32 = 0.3;
-const STEER_RISE: f32 = 3.2;
+const STEER_START: f32 = 0.2;
+const STEER_RISE: f32 = 1.8;
+/// Without key releases: how long one press steers before key repeat
+/// takes over (repeat only starts after about half a second, and counting
+/// a tap as held that long turned far too much).
+const STEER_TAP: Duration = Duration::from_millis(110);
 const STEER_FALL: f32 = 8.0;
 #[cfg(feature = "gamepad")]
 const STICK_DEADZONE: f32 = 0.15;
@@ -49,6 +55,15 @@ struct Hold {
 }
 
 impl Hold {
+    /// Held, for steering: without key releases a lone press is a short
+    /// tap, and only repeats arriving keep the steer on.
+    fn steering(&self, exact: bool, now: Instant) -> bool {
+        if exact || self.repeats > 0 {
+            return self.held(exact, now);
+        }
+        self.last.is_some_and(|l| now.duration_since(l) <= STEER_TAP)
+    }
+
     fn held(&self, exact: bool, now: Instant) -> bool {
         if exact {
             return self.down;
@@ -282,7 +297,8 @@ impl Input {
     pub fn controls(&mut self, now: Instant) -> Controls {
         let item = std::mem::take(&mut self.item_edge);
         let held = |k: Key| self.holds[k as usize].held(self.exact, now);
-        let keys_steer = held(Key::Right) as i8 as f32 - held(Key::Left) as i8 as f32;
+        let steering = |k: Key| self.holds[k as usize].steering(self.exact, now);
+        let keys_steer = steering(Key::Right) as i8 as f32 - steering(Key::Left) as i8 as f32;
         let pad_dpad = self.pad.right as i8 as f32 - self.pad.left as i8 as f32;
         let dt = self.last.map_or(0.0, |l| now.saturating_duration_since(l).as_secs_f32()).min(0.05);
         self.last = Some(now);
@@ -317,11 +333,11 @@ mod tests {
     fn steering_keys_ease_in_and_settle_back() {
         // a tap turns gently
         let tap = hold(0.0, 1.0, 1.0 / 60.0);
-        assert!(tap > 0.2 && tap < 0.4, "tap {tap}");
+        assert!(tap > 0.1 && tap < 0.3, "tap {tap}");
         // it builds through the steps in between
-        let mid = hold(0.0, 1.0, 0.12);
-        assert!(mid > 0.5 && mid < 0.9, "after 0.12 s {mid}");
-        assert_eq!(hold(0.0, 1.0, 0.3), 1.0, "full lock held");
+        let mid = hold(0.0, 1.0, 0.2);
+        assert!(mid > 0.4 && mid < 0.7, "after 0.2 s {mid}");
+        assert_eq!(hold(0.0, 1.0, 0.5), 1.0, "full lock held");
         // let go: straight again in well under a quarter second
         assert_eq!(hold(1.0, 0.0, 0.15), 0.0);
         // the other way: swings back through straight, never a jump
@@ -332,5 +348,19 @@ mod tests {
             s = next;
         }
         assert_eq!(s, -1.0);
+    }
+
+    #[test]
+    fn without_key_releases_a_tap_steers_briefly() {
+        let t0 = Instant::now();
+        let tap = Hold { down: true, last: Some(t0), repeats: 0 };
+        assert!(tap.steering(false, t0 + Duration::from_millis(50)));
+        // not the half second it takes key repeat to start
+        assert!(!tap.steering(false, t0 + Duration::from_millis(300)));
+        // held: repeats keep it on
+        let held = Hold { down: true, last: Some(t0), repeats: 4 };
+        assert!(held.steering(false, t0 + Duration::from_millis(60)));
+        // with exact keys, held is held
+        assert!(tap.steering(true, t0 + Duration::from_millis(900)));
     }
 }

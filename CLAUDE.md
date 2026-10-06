@@ -203,12 +203,18 @@ boosts, bumps, start result) and a snapshot every 500 ms.
 
 ## Controls
 
-- Steer: Left/Right or A/D, easing in (a tap turns 30%, holding builds
-  to full lock in about a quarter second, `input::ease_steer`; David found
-  the instant full lock too abrupt); gas: Up or W; brake/reverse: Down or S
+- Steer: Left/Right or A/D, easing in (a press starts at 20% and builds
+  to full lock over about half a second, `input::ease_steer`; David found
+  instant full lock too abrupt, then still too strong). Without the kitty
+  protocol (GNOME Terminal, David's, has none) a lone press steers only
+  110 ms (`STEER_TAP`) instead of the half second key repeat takes to
+  start, which had him counter-steering all the time; gas: Up or W; brake/reverse: Down or S
 - Drift: hold Space or Shift while steering
 - Item: X, E or Ctrl; brake + item drops a present behind you
-- Title screen: Left/Right picks the course
+- Title screen: Up/Down sets the rivals. Then the racer page, then the
+  course page: Left/Right picks the course (shown live behind the page,
+  with its map and a line on what's on it), Up/Down the rivals, Enter
+  races, Esc goes back
 - P pause, R restart, Esc back, H help, F8 sound on/off, M music on/off
 - Without the kitty keyboard protocol a terminal only repeats the last key
   held, so gas can't be held while steering: there Up latches the gas on,
@@ -401,11 +407,13 @@ David wants all of these (2026-10-06), roughly in this order:
       Snegurochka, Mari Lwyd
 - [x] The intro as an action-comic page (David, 2026-10-06): see the
       premise section
-- [ ] A course selection page (David, 2026-10-06: "once we have a few
-      tracks lined up ... a track selection page at the beginning"): after
-      choosing a racer, a page of the six courses, each with a preview
-      of its look, before the race. Today the title's Left/Right picks
-      the course
+- [x] A course selection page (2026-10-06, David: "once we have a few
+      tracks lined up ... a track selection page at the beginning";
+      `Phase::Course`): after the racer page, "CHOOSE YOUR COURSE" over
+      the course itself racing live behind, its name, two lines on its
+      look and what's on it (`game::COURSE_NOTES`), its map, a dot per
+      course, the rivals setting. In a network game the host chooses
+      (guests wait on the racer page). `--courses` opens on it for shots
 
 ## History
 

@@ -43,8 +43,20 @@ pub enum Phase {
     Story,
     /// Choose your racer.
     Select,
+    /// Choose the course, previewed live behind the page.
+    Course,
     Race,
 }
+
+/// What each course is like, for the course page: (the look, what's on it).
+pub const COURSE_NOTES: [(&str, &str); 6] = [
+    ("Aurora night over a frozen lake", "Hills, two jumps and an inlet. The one to learn on."),
+    ("Sunset by a lake of eggnog", "Twisty and icy. Mind the Yule Cat and the Yule Lads."),
+    ("Out on the frozen lake itself", "Black ice, holes in the ice, blizzards, penguins, a bear."),
+    ("Lilac dusk among giant candy canes", "Hills, a big jump, a snow tornado and the Yule Lads."),
+    ("Amber evening in a gingerbread village", "Fly over the cottage in the road, or go round it."),
+    ("Indoors, in Santa's workshop", "Conveyor belts, a mezzanine jump, and the crowd throws presents."),
+];
 
 pub struct Game {
     pub phase: Phase,
@@ -231,7 +243,7 @@ impl Game {
             // a guest picks a racer; the host decides the rest
             if guesting {
                 match (self.phase, c) {
-                    (Phase::Title, Cmd::Left | Cmd::Right | Cmd::Up | Cmd::Down) | (Phase::Select, Cmd::Confirm) | (Phase::Race, Cmd::Pause | Cmd::Restart | Cmd::Back | Cmd::Confirm) => continue,
+                    (Phase::Title, Cmd::Up | Cmd::Down) | (Phase::Select, Cmd::Confirm) | (Phase::Course, _) | (Phase::Race, Cmd::Pause | Cmd::Restart | Cmd::Back | Cmd::Confirm) => continue,
                     _ => {}
                 }
             }
@@ -262,7 +274,13 @@ impl Game {
                     self.screen(Phase::Select);
                 }
                 (Phase::Title, Cmd::Back) => self.exit = true,
-                (Phase::Select, Cmd::Confirm) => return self.switch(Phase::Race, self.course, input),
+                (Phase::Select, Cmd::Confirm) => return self.switch(Phase::Course, self.course, input),
+                (Phase::Course, Cmd::Confirm) => return self.switch(Phase::Race, self.course, input),
+                (Phase::Course, Cmd::Back) => self.screen(Phase::Select),
+                (Phase::Course, Cmd::Left) => return self.switch(Phase::Course, (self.course + n - 1) % n, input),
+                (Phase::Course, Cmd::Right) => return self.switch(Phase::Course, (self.course + 1) % n, input),
+                (Phase::Course | Phase::Title, Cmd::Up) => self.level = (self.level + 1).min(DIFFICULTY.len() - 1),
+                (Phase::Course | Phase::Title, Cmd::Down) => self.level = self.level.saturating_sub(1),
                 (Phase::Select, Cmd::Back) => self.screen(Phase::Title),
                 (Phase::Select, Cmd::Left) => {
                     self.pick = (self.pick + ROSTER.len() - 1) % ROSTER.len();
@@ -272,10 +290,6 @@ impl Game {
                     self.pick = (self.pick + 1) % ROSTER.len();
                     self.send_pick();
                 }
-                (Phase::Title, Cmd::Left) => return self.switch(Phase::Title, (self.course + n - 1) % n, input),
-                (Phase::Title, Cmd::Right) => return self.switch(Phase::Title, (self.course + 1) % n, input),
-                (Phase::Title, Cmd::Up) => self.level = (self.level + 1).min(DIFFICULTY.len() - 1),
-                (Phase::Title, Cmd::Down) => self.level = self.level.saturating_sub(1),
                 (Phase::Race, Cmd::Pause) => self.paused = !self.paused,
                 (Phase::Race, Cmd::Back) if self.paused => return self.switch(Phase::Title, self.course, input),
                 (Phase::Race, Cmd::Back) => self.paused = true,
@@ -679,6 +693,7 @@ impl Game {
             Phase::Title => self.draw_title_canvas(cv, big),
             Phase::Story => {}
             Phase::Select => self.draw_select_canvas(cv, big),
+            Phase::Course => self.draw_course_canvas(cv, big),
             Phase::Race => self.draw_race_canvas(cv, big),
         }
     }
@@ -701,6 +716,7 @@ impl Game {
             Phase::Title => self.draw_title_hud(buf, area, input),
             Phase::Story => self.draw_story(buf, area),
             Phase::Select => self.draw_select_hud(buf, area),
+            Phase::Course => self.draw_course_hud(buf, area),
             Phase::Race => self.draw_race_hud(buf, area, input),
         }
         if self.help {
@@ -720,6 +736,40 @@ impl Game {
         dim(cv);
         big_text(cv, "CHOOSE YOUR RACER", (cv.h as i32) / 8, big, (250, 210, 70));
         stage(cv, self.pick, self.t, cv.w as f32 * 0.38, cv.h as f32 * 0.66);
+    }
+
+    fn draw_course_canvas(&self, cv: &mut Canvas, big: i32) {
+        // the course itself shows behind, lightly shaded so text reads; the
+        // bottom band is darker for the card
+        let card = cv.h * 62 / 100;
+        for (i, p) in cv.px.iter_mut().enumerate() {
+            let k = if i / cv.w >= card { 0.6 } else { 0.2 };
+            *p = render::mix(*p, (10, 12, 34), k);
+        }
+        big_text(cv, "CHOOSE YOUR COURSE", (cv.h as i32) / 9, big, (250, 210, 70));
+        let name = courses()[self.course].0.to_uppercase();
+        big_text(cv, &name, cv.h as i32 * 72 / 100, big, (240, 244, 255));
+    }
+
+    fn draw_course_hud(&self, buf: &mut Buffer, area: Rect) {
+        let (w, h) = (area.width, area.height);
+        let n = courses().len();
+        let centre = |buf: &mut Buffer, y: u16, text: &str, style: Style| put_text(buf, w.saturating_sub(text.chars().count() as u16) / 2, y, text, style);
+        let (look, what) = COURSE_NOTES[self.course.min(COURSE_NOTES.len() - 1)];
+        let y = (h as f32 * 0.80) as u16;
+        centre(buf, y, &format!(" {look} "), panel_style());
+        centre(buf, y + 1, &format!(" {what} "), panel_style());
+        // which of the six: a dot each, the chosen one lit
+        let dots: String = (0..n).map(|k| if k == self.course { "● " } else { "○ " }).collect();
+        centre(buf, y + 3, &format!("<  {}{} of {n}  >", dots, self.course + 1), accent_style());
+        centre(buf, y + 4, &format!("Rivals:  {}  (Up/Down)", DIFFICULTY[self.level].0), panel_style());
+        let keys = "Left/Right: course    Enter: race    Esc: back";
+        centre(buf, h.saturating_sub(1), keys, accent_style());
+        // the course's shape, top right
+        let (mw, mh) = ((w / 5).clamp(12, 34), (h / 4).clamp(5, 14));
+        let marks = [(self.race.track.pts[0].0, self.race.track.pts[0].1, (255, 210, 80), '●')];
+        render::minimap(buf, Rect::new(w.saturating_sub(mw + 2), (h as f32 * 0.22) as u16, mw, mh), &self.race.track, &marks);
+        self.draw_net_status(buf, area, 1);
     }
 
     fn draw_story(&self, buf: &mut Buffer, area: Rect) {
@@ -762,7 +812,7 @@ impl Game {
             }
         }
         self.draw_net_status(buf, area, 1);
-        let keys = if self.guesting() { "Left/Right: choose    the host starts the race    Esc: back" } else { "Left/Right: choose    Enter: race    Esc: back" };
+        let keys = if self.guesting() { "Left/Right: choose    the host starts the race    Esc: back" } else { "Left/Right: choose    Enter: course    Esc: back" };
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, area.height.saturating_sub(3), keys, accent_style());
         let pos = format!("{} of {}", self.pick + 1, ROSTER.len());
         put_text(buf, area.width.saturating_sub(pos.len() as u16) / 2, area.height.saturating_sub(4), &pos, panel_style());
@@ -781,12 +831,10 @@ impl Game {
             put_text(buf, area.width.saturating_sub(l.chars().count() as u16) / 2, y0 + i as u16, l, panel_style());
         }
         self.draw_net_status(buf, area, 1);
-        let course = format!("<  {}  >", courses()[self.course].0);
         let y1 = area.height.saturating_sub(4);
-        put_text(buf, area.width.saturating_sub(course.len() as u16) / 2, y1, &course, accent_style());
         let level = format!("Rivals:  {}  (Up/Down)", DIFFICULTY[self.level].0);
         put_text(buf, area.width.saturating_sub(level.len() as u16) / 2, y1.saturating_sub(1), &level, panel_style());
-        let keys = "Enter or Space: choose racer    Left/Right: course    H: controls    Esc: quit";
+        let keys = "Enter or Space: choose racer    H: controls    Esc: quit";
         put_text(buf, area.width.saturating_sub(keys.len() as u16) / 2, y1 + 1, keys, panel_style());
         if !input.exact {
             let l = "(no kitty keyboard here: Up starts the gas, Down stops it, Space toggles drift)";
@@ -1301,7 +1349,18 @@ mod tests {
         assert!(screen_text(&g, &input).contains("Sprocket"));
         input.cmds.push(Cmd::Confirm);
         g.tick(&mut input);
+        assert_eq!(g.phase, Phase::Course, "then the course");
+        let text = screen_text(&g, &input);
+        assert!(text.contains("The one to learn on"), "{text}");
+        input.cmds.extend([Cmd::Left]);
+        g.tick(&mut input);
+        assert_eq!(courses()[g.course].0, "The Workshop", "round to the last");
+        assert!(screen_text(&g, &input).contains("6 of 6"));
+        input.cmds.push(Cmd::Confirm);
+        g.tick(&mut input);
         assert_eq!(g.phase, Phase::Race);
+        assert_eq!(g.race.track.name, "The Workshop");
+        assert_eq!(ROSTER[g.pick].name, "Sprocket", "still the racer chosen");
         let p = g.race.player().unwrap();
         assert_eq!(ROSTER[g.race.racers[p].who].name, "Sprocket");
         assert_eq!(g.race.racers[p].place as usize, ROSTER.len(), "the player starts at the back");
@@ -1309,14 +1368,18 @@ mod tests {
     }
 
     #[test]
-    fn the_title_screen_shows_the_course_and_a_racer() {
+    fn the_title_screen_shows_the_rivals_and_a_racer() {
         let mut g = Game::new(Phase::Title, 1, 0, 1);
         let mut input = Input::new(true);
         input.cmds.push(Cmd::Down);
         g.tick(&mut input);
         let text = screen_text(&g, &input);
         assert!(text.contains("Rivals:  Easy"), "{text}");
-        assert!(text.contains("Eggnogg"), "{text}");
         assert!(text.contains(" on "));
+    }
+
+    #[test]
+    fn every_course_has_notes_for_the_course_page() {
+        assert_eq!(COURSE_NOTES.len(), courses().len());
     }
 }
