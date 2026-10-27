@@ -10,9 +10,19 @@ your sparks burn aurora, fly off the kickers, and mind the penguins. From lap
 two Santa comes after the leader in the snowplough, and he is not happy.
 Can you win without getting caught?
 
+## Play
+
+With [av](https://asciiverse.sh), the Asciiverse client:
+
 ```
-cargo run --release
+av install sleighride
+av play sleighride
 ```
+
+Or download the archive for your system from this repository's Releases,
+unpack it and run `./sleighride` (`sleighride.exe` on Windows).
+
+To build it yourself: `cargo run --release`.
 
 Up to eight players on the local network: one runs `--host`, the others
 `--join`.
