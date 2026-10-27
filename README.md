@@ -20,7 +20,7 @@ av play sleighride
 ```
 
 Or download the archive for your system from this repository's Releases,
-unpack it and run `./sleighride` (`sleighride.exe` on Windows).
+unpack it and run `./sleighride`.
 
 To build it yourself: `cargo run --release`.
 
