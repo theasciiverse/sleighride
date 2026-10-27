@@ -34,6 +34,11 @@ const BOX_R: f32 = 2.6;
 const ROULETTE: f32 = 1.0;
 /// Santa's rest between catches.
 const SANTA_REST: f32 = 22.0;
+/// After a catch: how long Santa stays on screen, and how much of that he
+/// spends rolling slowly past the one he caught, shouting, before he
+/// speeds off.
+pub const GLOAT: f32 = 5.0;
+pub const GLOAT_CRAWL: f32 = 2.8;
 const MISTLETOE_TIME: f32 = 8.0;
 const KISS_R: f32 = 5.0;
 /// How long a clip round the ear shows: the swing, then the stars.
@@ -157,6 +162,15 @@ pub struct Santa {
     pub visits: u32,
     /// After a catch he rumbles on past for a moment before leaving.
     pub gloat: f32,
+    /// Who he just caught, while he gloats.
+    pub victim: Option<usize>,
+}
+
+impl Santa {
+    /// Rolling past the one he just caught, telling them so.
+    pub fn shouting(&self) -> bool {
+        self.active && self.victim.is_some() && self.gloat > GLOAT - GLOAT_CRAWL
+    }
 }
 
 /// Things that happened this step, for messages and effects.
@@ -312,7 +326,7 @@ impl Race {
             shots: Vec::new(),
             traps: Vec::new(),
             boxes,
-            santa: Santa { kart: santa, active: false, target: None, rest: 0.0, idx: 0, visits: 0, gloat: 0.0 },
+            santa: Santa { kart: santa, active: false, target: None, rest: 0.0, idx: 0, visits: 0, gloat: 0.0, victim: None },
             notes: Vec::new(),
             order: Vec::new(),
             autopilot: false,
@@ -863,15 +877,21 @@ impl Race {
             return;
         }
         if self.santa.gloat > 0.0 {
-            // drive on along the road, pleased with himself, then go
+            // roll slowly past the one he caught, shouting, then speed off
             self.santa.gloat -= DT;
-            let c = auto::drive_santa_on(self);
+            let cruise = match self.santa.victim {
+                Some(v) if self.santa.shouting() => self.racers[v].kart.speed + 9.0,
+                // then away at full tilt, out of sight
+                _ => f32::INFINITY,
+            };
+            let c = auto::drive_santa_on(self, cruise);
             self.santa.kart.step(c, &self.track);
             if let Some(i) = self.track.idx(self.santa.kart.x, self.santa.kart.y) {
                 self.santa.idx = i;
             }
             if self.santa.gloat <= 0.0 {
                 self.santa.active = false;
+                self.santa.victim = None;
             }
             return;
         }
@@ -900,9 +920,14 @@ impl Race {
                 self.notes.push(Note::SantaCaught(i));
                 self.notes.push(Note::Hit(i, None));
                 log::info!("Santa caught {}", ROSTER[self.racers[i].who].name);
-                self.santa.gloat = 2.0;
+                self.santa.gloat = GLOAT;
+                self.santa.victim = Some(i);
+                // he pulls up alongside for the clip, then rolls on past
+                self.santa.kart.speed = self.racers[i].kart.speed + 4.0;
                 self.santa.target = None;
-                self.santa.rest = SANTA_REST;
+                // his rest starts once he's gone: take the longer show off
+                // it, so he comes back as soon as when he left after 2 s
+                self.santa.rest = SANTA_REST - (GLOAT - 2.0);
                 return;
             }
             if d < 4.2 && d > 1e-3 {

@@ -1197,6 +1197,8 @@ thread_local! {
 }
 
 pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
+    // where Santa's cab is on screen, for his speech bubble
+    let mut santa_top = None;
     BELT_T.with(|b| b.set(s.time));
     let v = View::new(cv);
     let r = s.race;
@@ -1331,6 +1333,7 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
                 if let Some((pose, scale)) = pose_at(&v, &s.cam, k.x, k.y, k.z, k.heading, m.size, haze) {
                     shadow(cv, pose.sx, pose.sy, scale, 6.0);
                     m.draw(cv, &pose);
+                    santa_top = Some(m.point([4.0, 0.0, 20.0], &pose));
                     // the beacon flashes
                     if (s.time * 4.0) as i32 % 2 == 0 {
                         let (bx, by) = m.point([4.0, 0.0, 16.0], &pose);
@@ -1540,6 +1543,45 @@ pub fn draw_scene(cv: &mut Canvas, s: &Scene) {
     particles(cv, &v, &s.cam, tr, s.particles);
     if bliz > 0.0 {
         driving_snow(cv, &s.cam, r.weather.wind, bliz, s.time);
+    }
+    // Santa tells whoever he caught, over everything, as he rolls past
+    if let (Some((x, y)), Some(caught)) = (santa_top.filter(|_| r.santa.shouting()), r.santa.victim) {
+        let name = crate::roster::ROSTER[r.racers[caught].who].name.to_uppercase();
+        let shout = if r.player() == Some(caught) { "YOU'RE ON THE|NAUGHTY LIST!".to_string() } else { format!("{name}!|YOU'RE ON THE|NAUGHTY LIST!") };
+        speech(cv, &shout, x, y);
+    }
+}
+
+/// A speech bubble in the small pixel letters, its tail pointing down at
+/// (x, y), kept on the canvas.
+fn speech(cv: &mut Canvas, text: &str, x: f32, y: f32) {
+    let lines: Vec<&str> = text.split('|').collect();
+    let scale = if cv.w >= 320 { 2 } else { 1 };
+    let (pad, step) = (3 * scale, 7 * scale);
+    let w = lines.iter().map(|l| big_width(l, scale)).max().unwrap_or(0) + 2 * pad;
+    let h = lines.len() as i32 * step - 2 * scale + 2 * pad;
+    let tail = 4 * scale;
+    let x0 = (x as i32 - w / 2).clamp(1, (cv.w as i32 - w - 1).max(1));
+    let y0 = (y as i32 - tail - h).max(1);
+    let (ink, paper) = ((16, 20, 44), (250, 250, 255));
+    for by in -1..=h {
+        for bx in -1..=w {
+            let edge = by < 0 || bx < 0 || by == h || bx == w;
+            cv.put(x0 + bx, y0 + by, if edge { ink } else { paper });
+        }
+    }
+    // the tail, from the bubble's foot to the speaker
+    let (tx, ty) = ((x as i32).clamp(x0 + 2 * scale, x0 + w - 2 * scale), y0 + h);
+    for d in 0..tail {
+        let half = (tail - d) / 2;
+        for dx in -half - 1..=half + 1 {
+            let edge = dx.abs() > half;
+            cv.put(tx + dx, ty + d, if edge { ink } else { paper });
+        }
+    }
+    for (i, l) in lines.iter().enumerate() {
+        let lx = x0 + (w - big_width(l, scale)) / 2;
+        big_text_at(cv, l, lx, y0 + pad + i as i32 * step, scale, crate::roster::SANTA_COLOUR);
     }
 }
 

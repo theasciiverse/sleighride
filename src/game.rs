@@ -26,7 +26,7 @@ pub const TITLE: &str = "SLEIGHRIDE";
 
 /// The intro's captions, one per comic panel: short and punchy.
 const CAPTIONS: [&str; crate::story::PANELS] = [
-    "CHRISTMAS MORNING. SANTA'S OUT COLD.",
+    "SECOND DAY OF CHRISTMAS. SANTA'S OUT COLD.",
     "THE ELVES FOUND THE KEYS!",
     "SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!",
 ];
@@ -35,8 +35,9 @@ const CAPTIONS: [&str; crate::story::PANELS] = [
 /// The rivals drift perfectly, so at full pace they are a hard race; a
 /// little slower gives a person a fair one.
 /// Under the title, in the pixel lettering.
-const TAGLINE: &str = "CHRISTMAS MORNING. SANTA'S ASLEEP.|THE ELVES HAVE FOUND THE KEYS.";
-const TAGLINE_NARROW: &str = "CHRISTMAS MORNING.|SANTA'S ASLEEP. THE ELVES|HAVE FOUND THE KEYS.";
+const TAGLINE: &str = "SECOND DAY OF CHRISTMAS. SANTA'S ASLEEP.|THE ELVES HAVE FOUND THE KEYS.";
+const TAGLINE_NARROW: &str = "SECOND DAY OF CHRISTMAS.|SANTA'S ASLEEP. THE ELVES|HAVE FOUND THE KEYS.";
+const TAGLINE_NARROWEST: &str = "SECOND DAY OF|CHRISTMAS. SANTA'S|ASLEEP. THE ELVES|FOUND THE KEYS.";
 
 pub const DIFFICULTY: [(&str, f32); 3] = [("Easy", 0.93), ("Normal", 0.96), ("Hard", 1.0)];
 
@@ -606,7 +607,7 @@ impl Game {
                     let text = if self.race.santa.visits <= 1 { "SANTA'S AWAKE!" } else { "SANTA'S BACK!" };
                     self.flash = Some((text.into(), 2.0, SANTA_COLOUR));
                 }
-                Note::SantaCaught(i) if i == me && playing => self.flash = Some(("YOU'RE ON|SANTA'S|NAUGHTY LIST!".into(), 2.2, SANTA_COLOUR)),
+                // Santa says it himself, in a speech bubble as he rolls past
                 Note::Kiss(a, b) if (a == me || b == me) && playing => self.flash = Some(("SMOOCH!".into(), 1.0, (255, 110, 160))),
                 Note::Got(i, item) if i == me && playing => log::info!("got {item:?}"),
                 _ => {}
@@ -741,11 +742,19 @@ impl Game {
         };
         let small = (big - 1).max(1);
         // narrow windows get the tagline on more, shorter lines
-        let (tag, happy) = if TAGLINE.split('|').any(|l| big_width(l, 1) + 4 > w) { (TAGLINE_NARROW, "HE IS NOT GOING|TO BE HAPPY.") } else { (TAGLINE, "HE IS NOT GOING TO BE HAPPY.") };
-        // the tagline's two parts share one size
+        let fits = |t: &str| t.split('|').all(|l| big_width(l, 1) + 4 <= w);
+        let (tag, happy) = match () {
+            _ if fits(TAGLINE) => (TAGLINE, "HE IS NOT GOING TO BE HAPPY."),
+            _ if fits(TAGLINE_NARROW) => (TAGLINE_NARROW, "HE IS NOT GOING|TO BE HAPPY."),
+            _ => (TAGLINE_NARROWEST, "HE IS NOT GOING|TO BE HAPPY."),
+        };
+        // the tagline's two parts share one size; in the narrowest windows
+        // the title shrinks too, to leave room for the taller tagline
         let small = fit(tag, small).0.min(fit(happy, small).0);
-        let blocks = [(TITLE, fit(TITLE, big + 1).0, (236, 60, 70)), (tag, small, (214, 228, 255)), (happy, small, (250, 210, 70))];
-        let gaps = [(h / 10).max(4), 4, 0];
+        let narrowest = tag == TAGLINE_NARROWEST;
+        let title = if narrowest { 1 } else { big + 1 };
+        let blocks = [(TITLE, fit(TITLE, title).0, (236, 60, 70)), (tag, small, (214, 228, 255)), (happy, small, (250, 210, 70))];
+        let gaps = if narrowest { [3, 2, 0] } else { [(h / 10).max(4), 4, 0] };
         let total: i32 = blocks.iter().zip(gaps).map(|((text, scale, _), gap)| fit(text, *scale).1 + gap).sum();
         // stacked from about a sixth of the way down, but clear of the key
         // hints along the bottom (four rows, eight pixels)

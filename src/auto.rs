@@ -61,6 +61,13 @@ fn follow(r: &Race, x: f32, y: f32, heading: f32, speed: f32, drift: i8, idx: us
     Controls { steer, gas: true, drift: slide, ..Default::default() }
 }
 
+/// Fast enough off a kicker to clear a cottage's roof (one at 64 does).
+const COTTAGE_CLEAR: f32 = 50.0;
+/// How many samples ahead the rivals start lining up to pass a cottage.
+const COTTAGE_LOOK: isize = 110;
+/// ...and how many samples past it they hold that line.
+const COTTAGE_HOLD: isize = 40;
+
 pub fn drive(r: &Race, i: usize) -> Controls {
     let me = &r.racers[i];
     let ai = me.ai.unwrap_or(Ai { offset: 0.0, start_err: 0.0 });
@@ -70,21 +77,27 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         return Controls { gas: r.clock >= COUNTDOWN - 1.0 + ai.start_err, ..Default::default() };
     }
     let mut offset = ai.offset;
+    // (where, how wide a berth, how far ahead to plan for it)
     let hazards = r
         .traps
         .iter()
-        .map(|t| (t.x, t.y, 4.0))
-        .chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5)))
-        .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 3.0)))
-        .chain(r.wildlife.penguins.iter().filter(|p| p.gait == crate::wildlife::Gait::Waddling).map(|p| (p.x, p.y, 3.0)))
-        .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 8.0)))
-        .chain(r.track.cottages.iter().map(|&(x, y, size, _)| (x, y, crate::track::COTTAGE_HALF * size + 3.0)));
-    for (hx, hy, clear) in hazards {
+        .map(|t| (t.x, t.y, 4.0, 45, 0))
+        .chain(r.track.holes.iter().map(|&(x, y, rad)| (x, y, rad + 2.5, 45, 0)))
+        .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 3.0, 45, 0)))
+        .chain(r.wildlife.penguins.iter().filter(|p| p.gait == crate::wildlife::Gait::Waddling).map(|p| (p.x, p.y, 3.0, 45, 0)))
+        .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 8.0, 45, 0)))
+        // a cottage sits just past a kicker: at speed, fly over its roof
+        // (swinging out round it sends the low-grip rides off the road on
+        // landing); too slow for that, line up to pass it well before the
+        // run-up and hold the line a while past it
+        .chain(r.track.cottages.iter().filter(|_| k.speed < COTTAGE_CLEAR).map(|&(x, y, size, _)| (x, y, crate::track::COTTAGE_HALF * size + 3.0, COTTAGE_LOOK, COTTAGE_HOLD)));
+    for (hx, hy, clear, look, hold) in hazards {
         // steer round dropped presents and holes in the ice ahead
         let ti = r.track.idx(hx, hy);
         if let Some(ti) = ti {
-            let ahead = (ti as isize - me.idx as isize).rem_euclid(r.track.len() as isize);
-            if ahead < 45 {
+            let len = r.track.len() as isize;
+            let ahead = (ti as isize - me.idx as isize).rem_euclid(len);
+            if ahead < look || len - ahead < hold {
                 let (cx, cy) = r.track.pts[ti];
                 let (dx, dy) = r.track.tangent(ti);
                 let side = (hx - cx) * -dy + (hy - cy) * dx;
@@ -122,7 +135,7 @@ pub fn drive(r: &Race, i: usize) -> Controls {
         .chain(r.wildlife.bear.iter().map(|b| (b.x, b.y, 5.0)))
         .chain(r.weather.twisters.iter().map(|t| (t.x, t.y, crate::weather::TWISTER_R + 1.5)))
         .chain(r.traps.iter().map(|t| (t.x, t.y, 2.6)))
-        .chain(r.track.cottages.iter().map(|&(x, y, size, _)| (x, y, crate::track::COTTAGE_HALF * size + 2.5)))
+        .chain(r.track.cottages.iter().filter(|_| k.speed < COTTAGE_CLEAR).map(|&(x, y, size, _)| (x, y, crate::track::COTTAGE_HALF * size + 2.5)))
         .chain(r.folklore.cat.iter().filter(|c| !matches!(c.state, crate::folklore::Cat::Sitting(_))).map(|c| (c.x, c.y, 5.5)))
         .chain(r.folklore.lads.iter().filter(|_| me.item.is_some()).filter(|l| l.state == crate::folklore::Lad::Lurking).map(|l| (l.x, l.y, 7.5)));
     let (hc, hs) = (k.travel.cos(), k.travel.sin());
@@ -202,11 +215,12 @@ pub fn drive_santa(r: &Race, target: usize) -> Controls {
     c
 }
 
-/// Santa after a catch: on along the road, easing off.
-pub fn drive_santa_on(r: &Race) -> Controls {
+/// Santa after a catch: on along the road a lane over, at `cruise`.
+pub fn drive_santa_on(r: &Race, cruise: f32) -> Controls {
     let s = &r.santa.kart;
     let mut c = follow(r, s.x, s.y, s.heading, s.speed, 0, r.santa.idx, 6.0);
     c.drift = false;
-    c.gas = s.speed < 45.0;
+    c.gas = s.speed < cruise;
+    c.brake = s.speed > cruise + 8.0;
     c
 }

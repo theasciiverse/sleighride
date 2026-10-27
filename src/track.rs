@@ -822,6 +822,20 @@ impl Track {
         })
     }
 
+    /// Where (x, y) would be pushed to, just outside the walls of a
+    /// cottage it is inside at height `z`, if any.
+    pub fn out_of_cottage(&self, x: f32, y: f32, z: f32, reach: f32) -> Option<(f32, f32)> {
+        self.cottages.iter().find_map(|&(cx, cy, size, _)| {
+            let r = COTTAGE_HALF * size + reach;
+            let (dx, dy) = (x - cx, y - cy);
+            let d = dx.hypot(dy);
+            (d < r && z < self.height(cx, cy) + COTTAGE_TALL * size).then(|| {
+                let (ux, uy) = if d > 1e-3 { (dx / d, dy / d) } else { (1.0, 0.0) };
+                (cx + ux * (r + 0.1), cy + uy * (r + 0.1))
+            })
+        })
+    }
+
     /// Whether a point is in a hole in the ice.
     pub fn in_hole(&self, x: f32, y: f32) -> bool {
         self.holes.iter().any(|&(hx, hy, r)| (x - hx).abs() < r && (y - hy).abs() < r && (x - hx).hypot(y - hy) < r)

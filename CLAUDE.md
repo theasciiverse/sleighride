@@ -16,8 +16,8 @@ Repo: private, github.com/theasciiverse/sleighride (branch `main`).
 
 ## Premise
 
-Christmas morning: every present delivered, Santa asleep in his armchair
-by the workshop fire. All of Santa's helpers have taken everything with
+The second day of Christmas (David, 2026-10-27: Santa's big day is done):
+every present delivered, Santa asleep in his armchair by the workshop fire. All of Santa's helpers have taken everything with
 runners for a joyride:
 the big sleigh, the reindeer, the snowmobiles, toboggans and skis. Bob (the
 elf in the big sleigh, the player) races the others. Santa is not happy: from
@@ -41,7 +41,7 @@ first ones far too wide). SNORE! sits in Santa's room; a sound word that
 would land on a caption drops below it, and the middle caption sits flush
 against the far gutter (`game::caption_layout`, tested at six terminal
 sizes).
-Yellow captions: "CHRISTMAS MORNING. SANTA'S OUT COLD." / "THE ELVES
+Yellow captions: "SECOND DAY OF CHRISTMAS. SANTA'S OUT COLD." / "THE ELVES
 FOUND THE KEYS!" / "SANTA'S AWAKE. THE LEADER GETS A CLIP ROUND THE EAR!".
 About three seconds; Enter shows the page, then races.
 
@@ -58,7 +58,7 @@ domain folklore only (no Rudolph: our reindeer have black noses).
 
 Playable (2026-10-05): two courses, six racers, items, Santa.
 
-- Splash/title screen: SLEIGHRIDE and the tagline ("CHRISTMAS MORNING.
+- Splash/title screen: SLEIGHRIDE and the tagline ("SECOND DAY OF CHRISTMAS.
   SANTA'S ASLEEP. THE ELVES HAVE FOUND THE KEYS." / "HE IS NOT GOING TO
   BE HAPPY.") all in the pixel lettering, stacked a sixth of the way down
   and wrapped onto more lines in narrow windows; difficulty (Up/Down); an
@@ -143,6 +143,23 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   and title screens
 
 ## Decisions
+
+- **Santa's catch is a scene (David, 2026-10-27):** he pulls up beside the
+  one he caught, clips them, and rolls slowly past in the next lane with a
+  speech bubble in the small pixel letters ("YOU'RE ON THE NAUGHTY LIST!",
+  a rival's name first when it isn't you), then speeds off out of sight
+  (`race::GLOAT`, `GLOAT_CRAWL`, `render::speech`). His rest is shortened
+  by the longer show, so his visits come as often as before
+- **Gingerbread Village balance (2026-10-27):** the reindeer averaged 2.5th
+  and the skis 6.2nd there. Causes found with the autopilot, slice by slice:
+  rivals swung out round the cottage and crossed the kicker's lip still
+  moving sideways, so the low-grip rides slid off the road on landing; and
+  a hairpin at 30% led straight into the climb. Rivals now fly over the
+  cottage's roof when fast enough (`auto::COTTAGE_CLEAR`) and go round only
+  when slow, planned from further back; the hairpin's control point moved
+  from (300, 190) to (335, 200). Found on the way: a sleigh coming down on
+  the roof just short of clearing it was trapped inside the cottage for up
+  to 20 s; it now slides off to the nearest side (`track::out_of_cottage`)
 
 - **The lens follows the window's height** (`View::new`: f = 0.68 h,
   capped at 0.62 w for tall, narrow windows), so a wider window shows more

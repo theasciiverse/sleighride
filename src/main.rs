@@ -127,6 +127,10 @@ fn main() -> io::Result<()> {
         while wait_cat && g.race.clock < 900.0 && !g.race.folklore.cat.is_some_and(|c| ahead_of(&g, c.x, c.y) && (!pounce || matches!(c.state, folklore::Cat::Pouncing(t) if t > 0.3))) {
             g.run_auto(DT);
         }
+        // and then, for a moment later in the same scene, run on this many seconds
+        if let Some(after) = std::env::var("SLEIGHRIDE_SHOT_AFTER").ok().and_then(|v| v.parse::<f32>().ok()) {
+            g.run_auto(after);
+        }
         if std::env::var("SLEIGHRIDE_SHOT_DEBUG").is_ok() {
             let k = &g.race.racers[me].kart;
             eprintln!("shot at clock {:.2}: racer {me} pos ({:.0},{:.0}) heading {:.2}", g.race.clock, k.x, k.y, k.heading);

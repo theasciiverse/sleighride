@@ -450,7 +450,20 @@ impl Kart {
             }
             return;
         }
-        // a cottage in the road: over its roof, or into its wall
+        // a cottage in the road: over its roof, or into its wall. Already
+        // inside it can only mean coming down on the roof just short of
+        // clearing it: slide off to the nearest side, a hard landing, or
+        // every step after would be inside too and the sleigh stuck there
+        if let Some((ox, oy)) = track.out_of_cottage(self.x, self.y, self.z, KART_R) {
+            self.x = ox;
+            self.y = oy;
+            self.speed *= 0.5;
+            if !self.stunned() {
+                self.stun(0.9, 1.0);
+                self.events.push(Event::Tree);
+            }
+            return;
+        }
         if let Some((cx, cy)) = track.cottage_at(nx, ny, self.z, KART_R) {
             let (ax, ay) = (nx - cx, ny - cy);
             let l = ax.hypot(ay).max(1e-3);
