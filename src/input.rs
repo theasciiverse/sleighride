@@ -36,6 +36,10 @@ const STEER_TAP: Duration = Duration::from_millis(110);
 const STEER_FALL: f32 = 8.0;
 #[cfg(feature = "gamepad")]
 const STICK_DEADZONE: f32 = 0.15;
+#[cfg(feature = "gamepad")]
+/// How much the stick's response curves: 1 is straight, higher is gentler
+/// near the centre.
+const STICK_CURVE: f32 = 1.6;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Key {
@@ -130,6 +134,15 @@ pub struct Input {
 
 /// One step of keyboard steering easing from `now` towards `target` (-1, 0
 /// or 1) over `dt` seconds.
+/// The stick's steering: nothing inside the dead zone, then from zero out
+/// to full lock at the edge, gentle over the first half of the travel so
+/// small corrections stay small (a drift especially).
+#[cfg(feature = "gamepad")]
+fn stick_curve(v: f32) -> f32 {
+    let x = ((v.abs() - STICK_DEADZONE) / (1.0 - STICK_DEADZONE)).clamp(0.0, 1.0);
+    x.powf(STICK_CURVE) * v.signum()
+}
+
 fn ease_steer(now: f32, target: f32, dt: f32) -> f32 {
     if target == 0.0 {
         let fall = STEER_FALL * dt;
@@ -285,7 +298,7 @@ impl Input {
                         }
                     }
                     EventType::AxisChanged(Axis::LeftStickX, v, _) => {
-                        self.pad.steer = if v.abs() < STICK_DEADZONE { 0.0 } else { v };
+                        self.pad.steer = stick_curve(v);
                     }
                     _ => {}
                 }
@@ -327,6 +340,16 @@ impl Input {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "gamepad")]
+    fn the_stick_is_gentle_near_the_centre_and_full_at_the_edge() {
+        assert_eq!(stick_curve(0.1), 0.0);
+        assert!(stick_curve(STICK_DEADZONE + 0.01) < 0.01, "no jump out of the dead zone");
+        assert!(stick_curve(0.5) < 0.3 && stick_curve(0.5) > 0.1, "{}", stick_curve(0.5));
+        assert_eq!(stick_curve(1.0), 1.0);
+        assert_eq!(stick_curve(-1.0), -1.0);
+    }
 
     fn hold(from: f32, target: f32, secs: f32) -> f32 {
         let mut s = from;

@@ -250,7 +250,15 @@ boosts, bumps, start result) and a snapshot every 500 ms.
   held, so gas can't be held while steering: there Up latches the gas on,
   Down turns it off, and Space toggles a drift
 - Pad: stick or d-pad steer, A gas, B brake, right shoulder drift, X/Y or
-  left shoulder item.
+  left shoulder item. The stick has a response curve (`input::stick_curve`,
+  `STICK_CURVE` 1.6 past the dead zone): gentle over the first half of its
+  travel, full lock at the edge
+- Drift turning (2026-10-27, David found it too quick on a gamepad):
+  `kart::drift_share`, 0.55 of the ride's turn with the stick centred
+  (was 0.72, as hard as full lock), up to 1.2 steered fully in and down to
+  0.24 fully out, as before. The rivals steer for the arc they always took
+  (`kart::drift_inward_for`), so the balance is unchanged; a straight cut
+  to the whole drift handed every twisty course to the reindeer
   `SLEIGHRIDE_ANY_PAD=1` accepts pads missing from SDL's mapping database
 
 ## Roster

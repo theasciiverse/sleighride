@@ -54,7 +54,10 @@ fn follow(r: &Race, x: f32, y: f32, heading: f32, speed: f32, drift: i8, idx: us
         bend.abs() > 0.55 && speed > 35.0
     };
     let steer = if drift != 0 && slide {
-        (err * 3.0 * drift as f32 - 0.2).clamp(-1.0, 1.0) * drift as f32
+        // the arc this has always taken (0.72 of the turn centred, 0.48 more
+        // or less steered fully in or out), steered on the drift's own curve
+        let inward = (err * 3.0 * drift as f32 - 0.2).clamp(-1.0, 1.0);
+        crate::kart::drift_inward_for(0.72 + 0.48 * inward) * drift as f32
     } else {
         (err * 3.0).clamp(-1.0, 1.0)
     };

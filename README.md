@@ -14,8 +14,8 @@ Can you win without getting caught?
 cargo run --release
 ```
 
-Up to eight players over the local network (`--host`, `--join`) or across
-the internet (`--join ID`, the id the host's lobby shows).
+Up to eight players on the local network: one runs `--host`, the others
+`--join`.
 
 ## Keys
 

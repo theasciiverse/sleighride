@@ -34,6 +34,31 @@ pub const GRAVITY: f32 = 50.0;
 /// How much a slope changes top speed: share per unit of rise per run.
 const SLOPE_SHARE: f32 = 1.6;
 const TREE_R: f32 = 1.4;
+/// A drift's turn rate, as a share of the ride's turn: with the stick
+/// centred, steered fully in, and steered fully out.
+const DRIFT_TURN: f32 = 0.55;
+const DRIFT_TIGHT: f32 = 1.2;
+const DRIFT_WIDE: f32 = 0.24;
+
+/// A drift's turn rate as a share of the ride's turn, for steering
+/// `inward` (-1 fully out .. 1 fully in).
+fn drift_share(inward: f32) -> f32 {
+    if inward >= 0.0 {
+        DRIFT_TURN + (DRIFT_TIGHT - DRIFT_TURN) * inward.min(1.0)
+    } else {
+        DRIFT_TURN + (DRIFT_TURN - DRIFT_WIDE) * inward.max(-1.0)
+    }
+}
+
+/// How far in to steer for a drift turning at `share` of the ride's turn:
+/// the inverse of `drift_share`.
+pub fn drift_inward_for(share: f32) -> f32 {
+    if share >= DRIFT_TURN {
+        ((share - DRIFT_TURN) / (DRIFT_TIGHT - DRIFT_TURN)).min(1.0)
+    } else {
+        ((share - DRIFT_TURN) / (DRIFT_TURN - DRIFT_WIDE)).max(-1.0)
+    }
+}
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Controls {
@@ -409,7 +434,11 @@ impl Kart {
                     self.events.push(Event::Tier(after));
                 }
             }
-            d * st.turn * (0.72 + 0.48 * inward)
+            // a gentle arc with the stick centred, tightened by steering in
+            // and widened by steering out; the tightest and widest are as
+            // before (David, 2026-10-27: centred, it turned as hard as full
+            // lock, too quick to hold on a gamepad)
+            d * st.turn * drift_share(inward)
         } else {
             let sharper = if boosting { 1.15 } else { 1.0 };
             c.steer * st.turn * reach * sharper * self.speed.signum()
