@@ -19,9 +19,6 @@ av install sleighride
 av play sleighride
 ```
 
-Or download the archive for your system from this repository's Releases,
-unpack it and run `./sleighride`.
-
 To build it yourself: `cargo run --release`.
 
 Up to eight players on the local network: one runs `--host`, the others
