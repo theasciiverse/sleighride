@@ -57,3 +57,8 @@ Session log for bug reports: `RUST_LOG=sleighride=debug sleighride 2>sleighride.
 The folklore (Julbocken, La Befana, the Yule Cat, the Yule Lads, Ded Moroz
 and Snegurochka) is public-domain Christmas tradition. Networking uses
 [iroh](https://iroh.computer).
+
+## Licence
+
+GNU General Public License, version 3 or (at your option) any later
+version; see [LICENSE](LICENSE).

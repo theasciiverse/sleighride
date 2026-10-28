@@ -185,8 +185,8 @@ Playable (2026-10-05): two courses, six racers, items, Santa.
   code. The model is drawn from a flatter angle than the real camera (55% of
   its pitch), the way kart sprites are, so it reads from behind rather than
   from above.
-- **License:** not chosen yet, as for every other Asciiverse game; keeping
-  GPL code out keeps the choice open.
+- **Licence:** GPL-3.0-or-later (David, 2026-10-27). No outside GPL code is
+  in it; the choice was free.
 
 ## Layout
 
