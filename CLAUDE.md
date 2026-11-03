@@ -294,6 +294,26 @@ A new racer is a row in `roster.rs` and, for a new kind of ride, a model in
   control points in code
 - Hills for Eggnogg; more jumps; a "Slayride" name for Hard or a mode where
   Santa really means business
+- **A road across the sky through the aurora** (David, 2026-11-03,
+  "emphatically yes"; backlogged, not started): course 11, a road of
+  shimmering aurora bands (green, violet) floating in the night sky on
+  Christmas night, stars below and the earth far down under them. The
+  reindeer fly, so it fits. Our own name, never "Rainbow Road" (Nintendo's).
+  How it fits the existing code, checked 2026-11-03:
+  - Nothing under the road: the land beyond the banks drops to a void floor
+    far below (the course's `lake` height), and those pixels show sky. The
+    one real renderer change: `terrain()` in `src/render.rs` first fills
+    everything below the horizon with haze; for this course it fills with
+    a starfield instead, and void cells are left unpainted
+  - Driving off the edge: the crevasse code already does it (`kart.rs`,
+    `in_crevasse`, hauled back along the road); the road's edge works the
+    same way
+  - The rainbow: bands in `ground_colour()`, across the road or along the
+    lap, animated over time like `tier_colour()`
+  - Hills, jumps and gaps between floating sections: `hills` and `kickers`
+    in the course file as they are
+  - Limit of the height map (one height per point): no road over itself,
+    no loops or overhangs; banked turns are fine
 
 ## Next steps
 
