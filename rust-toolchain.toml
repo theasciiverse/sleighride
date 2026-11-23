@@ -1,0 +1,4 @@
+# The toolchain Sleighride is built and tested with. Rust 1.99 and 1.100
+# hang compiling some crates (rust-lang/rust#164727), so CI uses this too.
+[toolchain]
+channel = "1.93.1"

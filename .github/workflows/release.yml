@@ -137,6 +137,8 @@ jobs:
 
   release:
     needs: [linux, macos, windows]
+    # publish what built: one stuck runner must not hold back the rest
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
