@@ -288,10 +288,16 @@ impl Game {
                 }
                 (Phase::Race, Cmd::Pause) => self.paused = !self.paused,
                 (Phase::Race, Cmd::Back) if self.paused => return self.switch(Phase::Title, self.course, input),
+                // after the finish Esc is the title, as the results card says
+                (Phase::Race, Cmd::Back) if self.player_done() => return self.switch(Phase::Title, self.course, input),
                 (Phase::Race, Cmd::Back) => self.paused = true,
                 (Phase::Race, Cmd::Restart) => return self.switch(Phase::Race, self.course, input),
                 (Phase::Race, Cmd::Confirm) if self.paused => self.paused = false,
-                (Phase::Race, Cmd::Confirm) if self.player_done() => return self.switch(Phase::Race, self.course, input),
+                // after the finish Enter goes on to the course page with the
+                // next course picked (Enter again races it); R races this
+                // one again (David, 2026-11-23: it used to restart the same
+                // course)
+                (Phase::Race, Cmd::Confirm) if self.player_done() => return self.switch(Phase::Course, (self.course + 1) % n, input),
                 _ => {}
             }
         }
@@ -1012,7 +1018,7 @@ impl Game {
                 });
                 lines.push(santa_says(p.place, p.caught).to_string());
                 lines.push(String::new());
-                lines.push("Enter: race again    Esc: title".into());
+                lines.push("Enter: next course    R: race again    Esc: title".into());
                 let refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
                 draw_box(buf, area, &refs);
             }
@@ -1348,6 +1354,45 @@ mod tests {
         assert!(text.contains("Santa:"), "{text}");
         assert!(text.contains("Bob"));
         assert_eq!(text.matches("Lap ").count(), 3);
+    }
+
+    #[test]
+    fn after_the_finish_enter_goes_on_to_the_next_course() {
+        let mut g = Game::new(Phase::Race, 0, 0, 1);
+        let mut input = Input::new(true);
+        while !g.player_done() && g.race.clock < 500.0 {
+            g.run_auto(DT);
+        }
+        g.run_auto(2.0);
+        assert!(screen_text(&g, &input).contains("Enter: next course"));
+        input.cmds.push(Cmd::Confirm);
+        g.tick(&mut input);
+        assert_eq!(g.phase, Phase::Course, "on to the course page");
+        assert_eq!(g.course, 1, "with the next course picked");
+        // the last course goes round to the first
+        let n = courses().len();
+        let mut g = Game::new(Phase::Race, n - 1, 0, 1);
+        while !g.player_done() && g.race.clock < 500.0 {
+            g.run_auto(DT);
+        }
+        input.cmds.push(Cmd::Confirm);
+        g.tick(&mut input);
+        assert_eq!((g.phase, g.course), (Phase::Course, 0));
+        // Esc after the finish is the title, R the same course again
+        let mut g = Game::new(Phase::Race, 2, 0, 1);
+        while !g.player_done() && g.race.clock < 500.0 {
+            g.run_auto(DT);
+        }
+        input.cmds.push(Cmd::Restart);
+        g.tick(&mut input);
+        assert_eq!((g.phase, g.course), (Phase::Race, 2), "R: the same course");
+        assert!(!g.player_done(), "a fresh race");
+        while !g.player_done() && g.race.clock < 500.0 {
+            g.run_auto(DT);
+        }
+        input.cmds.push(Cmd::Back);
+        g.tick(&mut input);
+        assert_eq!(g.phase, Phase::Title, "Esc: the title");
     }
 
     #[test]
