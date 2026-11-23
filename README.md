@@ -45,7 +45,15 @@ latches the gas on, Down turns it off, and Space toggles a drift.
 ## Options
 
 `sleighride --help` lists them: `--race`, `--course N`, `--as NAME`, `--mute`,
-`--host`, `--join [ID]`, `--name NAME`.
+`--christmas WHEN`, `--host`, `--join [ID]`, `--name NAME`.
+
+From 1 December to Twelfth Night (6 January) carols join the music: Jingle
+Bells, Deck the Hall, God Rest You Merry and Good King Wenceslas in the
+races, Stille Nacht, The Holly and the Ivy and Vom Himmel hoch on the
+menus, taking turns with the game's own tunes. All year Tchaikovsky's
+March of the Wooden Soldiers races too. `--christmas always` or `never`
+overrides the calendar. Every carol is a public-domain melody arranged for
+the game (`asciiverse/carols/SOURCES.md`).
 
 Session log for bug reports: `RUST_LOG=sleighride=debug sleighride 2>sleighride.log`
 

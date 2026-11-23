@@ -1,6 +1,7 @@
 mod audio;
 mod auto;
 mod birds;
+mod carols;
 mod course;
 mod crowd;
 mod folklore;
@@ -46,12 +47,14 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "sleighride [--race] [--course N] [--as NAME] [--mute] [--host | --join [ID]] [--name NAME]\n\n\
+            "sleighride [--race] [--course N] [--as NAME] [--mute] [--christmas WHEN] [--host | --join [ID]] [--name NAME]\n\n\
              Sleighride: kart racing with Santa's runaway helpers. In game, F1 or H shows the help.\n\
              --race                      skip the title screen\n\
              --course N                  1 Frozen Lake, 2 Eggnogg, 3 Thin Ice, 4 Candy Cane Forest, 5 Gingerbread Village, 6 The Workshop, 7 The Glacier, 8 The Birch Wood, 9 The Fjord, 10 The Night Market\n\
              --as NAME                   race as Bob, Holly, Sprocket, Pip, Juniper, Nutmeg, Tomte or Befana\n\
              --mute                      no sound (F8 toggles sound, M the music)\n\
+             --christmas WHEN            carols with the music: season (1 December to 6 January,\n\
+             \x20                           the default), always or never\n\
              --host                      host a race others can join (local network or internet)\n\
              --join                      look for races on the local network\n\
              --join ID                   join a host by its iroh id (works across the internet)\n\
@@ -142,7 +145,13 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
     // open audio before the alternate screen, so any ALSA chatter lands above it
-    let mut audio = audio::Audio::new(args.iter().any(|a| a == "--mute"));
+    let christmas = match args.iter().position(|a| a == "--christmas").and_then(|i| args.get(i + 1)).map(String::as_str) {
+        Some("always") => true,
+        Some("never") => false,
+        _ => audio::christmas_season(),
+    };
+    log::info!("carols {christmas}");
+    let mut audio = audio::Audio::new(args.iter().any(|a| a == "--mute"), christmas);
     log::info!("audio available {} muted {}", audio.available(), audio.muted);
     let mut terminal = ratatui::init();
     let kitty = supports_keyboard_enhancement().unwrap_or(false);

@@ -330,7 +330,18 @@ David wants all of these (2026-10-06), roughly in this order:
       than sleigh bells. **The soundtrack stays wintry, not Christmassy**
       (David, 2026-10-06: the game is played all year and carols would
       get to be a bit much); the first version's carols were replaced.
-      Santa's plough sounds like a tank: a low beating growl and
+      **Carols in season** (David, 2026-11-23, "that suits me really
+      well"): from 1 December to 6 January seven public-domain carols
+      take turns with our own tunes (four in the race, three on the
+      menus), and Tchaikovsky's March of the Wooden Soldiers races all
+      year; `--christmas always|never` overrides the date. Each tune has
+      its own metre and tempo (`Song::bar`, `bpm`), a playlist per mode
+      moves on when a tune ends, the final lap speeds up whatever plays.
+      Melodies only, from Mutopia (public domain) and CPDL editions
+      (melody only, files fetched not committed), bass roots our own:
+      `asciiverse/carols/` (generator, SOURCES.md), data in
+      `src/carols.rs` (generated, do not edit). **Needs David's
+      ears.** Santa's plough sounds like a tank: a low beating growl and
       clanking tracks that speed up with him. 28 effects:
       countdown, hop, spark tiers, boost, rocket start, stall, launch,
       landing crunch, trick, bumps, tree, hits, throws, burst, tinsel,

@@ -158,7 +158,8 @@ pub struct Audio {
 }
 
 impl Audio {
-    pub fn new(muted: bool) -> Audio {
+    /// `christmas`: the carols join the music (the season, or as asked).
+    pub fn new(muted: bool, christmas: bool) -> Audio {
         let sink = if muted {
             None
         } else {
@@ -176,7 +177,7 @@ impl Audio {
         let live = Arc::new(Mutex::new(Live::default()));
         let bank = if sink.is_some() { ALL_SFX.iter().map(|&s| buffer(render_sfx(s))).collect() } else { Vec::new() };
         if let Some(s) = &sink {
-            s.mixer().add(Band::new(live.clone()));
+            s.mixer().add(Band::new(live.clone(), christmas));
         }
         Audio { sink, bank, live, muted, music_on: true, last: [None; ALL_SFX.len()] }
     }
@@ -401,11 +402,65 @@ fn render_sfx(s: Sfx) -> Vec<f32> {
 /// A melody note in beats: (midi, start, length).
 type Note = (f32, f32, f32);
 
-/// A tune: its notes, its length in beats, and a bass root per 4-beat bar.
+/// A tune: its notes, its length in beats, a bass root per bar, the
+/// beats to a bar and its tempo in beats a minute.
 struct Song {
     notes: Vec<Note>,
     len: f32,
     roots: Vec<f32>,
+    bar: f32,
+    bpm: f32,
+    /// For the session log: the tune's name and where it comes from.
+    name: &'static str,
+    source: &'static str,
+}
+
+/// Whether today (UTC) is in the Christmas season: 1 December to 6 January,
+/// Twelfth Night.
+pub fn christmas_season() -> bool {
+    let days = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0);
+    let (_, month, day) = civil(days as i64);
+    month == 12 || (month == 1 && day <= 6)
+}
+
+/// Year, month and day from days since 1970-01-01 (Howard Hinnant's
+/// days-to-civil algorithm).
+fn civil(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (yoe + era * 400 + i64::from(m <= 2), m, d)
+}
+
+/// A carol or winter piece from `carols.rs` as a playable tune.
+fn carol(c: &crate::carols::Carol) -> Song {
+    let mut s = sequence(&[c.notes], c.roots, c.bpm);
+    s.bar = c.bar;
+    s.name = c.name;
+    s.source = c.source;
+    s
+}
+
+/// The tunes for the menus or the race, in the order they take turns. In
+/// the Christmas season the carols come in between the original tunes;
+/// the rest of the year it is the originals and the winter pieces
+/// (David, 2026-11-23, after deciding on 2026-10-06 that the soundtrack
+/// stays wintry: carols all year would get to be a bit much).
+fn playlist(race: bool, christmas: bool) -> Vec<Song> {
+    let own = if race { runners() } else { first_light() };
+    let mut picks: Vec<Song> = crate::carols::CAROLS.iter().filter(|c| c.race == race && (christmas || !c.christmas)).map(carol).collect();
+    let mut list = Vec::new();
+    if christmas && !picks.is_empty() {
+        list.push(picks.remove(0));
+    }
+    list.push(own);
+    list.extend(picks);
+    list
 }
 
 /// "First Light", the menu theme: airy, in C major pentatonic.
@@ -428,7 +483,10 @@ fn first_light() -> Song {
         (69.0, 1.0), (67.0, 1.0), (64.0, 1.0), (62.0, 1.0),
         (64.0, 2.0), (67.0, 2.0),
     ];
-    sequence(&[a, b, c, b], &[48.0, 45.0, 41.0, 48.0, 48.0, 41.0, 43.0, 48.0, 45.0, 41.0, 48.0, 43.0, 48.0, 41.0, 43.0, 48.0])
+    let mut s = sequence(&[a, b, c, b], &[48.0, 45.0, 41.0, 48.0, 48.0, 41.0, 43.0, 48.0, 45.0, 41.0, 48.0, 43.0, 48.0, 41.0, 43.0, 48.0], 96.0);
+    s.name = "First Light";
+    s.source = "our own (2026-10-06)";
+    s
 }
 
 /// "Runners", the race theme: driving, in E minor.
@@ -445,10 +503,13 @@ fn runners() -> Song {
         (67.0, 0.5), (69.0, 0.5), (71.0, 1.0), (76.0, 1.0), (74.0, 1.0),
         (71.0, 3.0), (66.0, 1.0),
     ];
-    sequence(&[a, b, a, b], &[40.0, 36.0, 40.0, 35.0, 36.0, 38.0, 40.0, 35.0, 40.0, 36.0, 40.0, 35.0, 36.0, 38.0, 40.0, 35.0])
+    let mut s = sequence(&[a, b, a, b], &[40.0, 36.0, 40.0, 35.0, 36.0, 38.0, 40.0, 35.0, 40.0, 36.0, 40.0, 35.0, 36.0, 38.0, 40.0, 35.0], 140.0);
+    s.name = "Runners";
+    s.source = "our own (2026-10-06)";
+    s
 }
 
-fn sequence(parts: &[&[(f32, f32)]], roots: &[f32]) -> Song {
+fn sequence(parts: &[&[(f32, f32)]], roots: &[f32], bpm: f32) -> Song {
     let mut notes = Vec::new();
     let mut at = 0.0;
     for part in parts {
@@ -457,7 +518,7 @@ fn sequence(parts: &[&[(f32, f32)]], roots: &[f32]) -> Song {
             at += d;
         }
     }
-    Song { notes, len: at, roots: roots.to_vec() }
+    Song { notes, len: at, roots: roots.to_vec(), bar: 4.0, bpm, name: "", source: "" }
 }
 
 #[derive(Clone, Copy)]
@@ -496,6 +557,12 @@ struct Band {
     notes: Vec<Note>,
     song_len: f32,
     roots: Vec<f32>,
+    /// The playing tune's beats to a bar and tempo.
+    bar: f32,
+    bpm: f32,
+    /// The menu and race playlists, and where each one is.
+    lists: [Vec<Song>; 2],
+    turn: [usize; 2],
     beat: f32,
     next_note: usize,
     noise: Noise,
@@ -507,7 +574,7 @@ struct Band {
 }
 
 impl Band {
-    fn new(live: Arc<Mutex<Live>>) -> Band {
+    fn new(live: Arc<Mutex<Live>>, christmas: bool) -> Band {
         Band {
             live,
             state: Live::default(),
@@ -520,6 +587,10 @@ impl Band {
             notes: Vec::new(),
             song_len: 1.0,
             roots: Vec::new(),
+            bar: 4.0,
+            bpm: 96.0,
+            lists: [playlist(false, christmas), playlist(true, christmas)],
+            turn: [0, 0],
             beat: 0.0,
             next_note: 0,
             noise: Noise(0x2468_ACE1),
@@ -529,6 +600,28 @@ impl Band {
             buf: vec![0.0; 1024],
             pos: 1024,
         }
+    }
+
+    /// Starts the current tune of the playing mode's list from the top.
+    fn load(&mut self) {
+        let i = match self.song {
+            Music::Off => {
+                self.notes = Vec::new();
+                return;
+            }
+            Music::Menu => 0,
+            _ => 1,
+        };
+        let list = &self.lists[i];
+        let tune = &list[self.turn[i] % list.len().max(1)];
+        self.notes = tune.notes.clone();
+        self.song_len = tune.len;
+        self.roots = tune.roots.clone();
+        self.bar = tune.bar;
+        self.bpm = tune.bpm;
+        self.beat = 0.0;
+        self.next_note = 0;
+        log::info!("music: {} ({})", tune.name, tune.source);
     }
 
     fn render(&mut self) {
@@ -542,22 +635,14 @@ impl Band {
         };
         if song != self.song {
             self.song = song;
-            let tune = match song {
-                Music::Menu => first_light(),
-                Music::Race | Music::FinalLap => runners(),
-                Music::Off => Song { notes: Vec::new(), len: 1.0, roots: Vec::new() },
-            };
-            self.notes = tune.notes;
-            self.song_len = tune.len;
-            self.roots = tune.roots;
-            self.beat = 0.0;
-            self.next_note = 0;
+            self.load();
         }
+        // the final lap plays whatever is on faster, as Runners went from
+        // 140 to 172
         let bpm = match music {
-            Music::Menu => 96.0,
-            Music::Race => 140.0,
-            Music::FinalLap => 172.0,
             Music::Off => 0.0,
+            Music::FinalLap => self.bpm * 172.0 / 140.0,
+            _ => self.bpm,
         };
         for i in 0..self.buf.len() {
             let mut x = 0.0;
@@ -582,7 +667,7 @@ impl Band {
                 let sub = if racing { 2.0 } else { 1.0 };
                 if (before * sub).floor() != (self.beat * sub).floor() {
                     let b = self.beat.floor();
-                    let bar = (b / 4.0).floor() as usize;
+                    let bar = (b / self.bar).floor() as usize;
                     let root = self.roots.get(bar % self.roots.len().max(1)).copied().unwrap_or(48.0);
                     let step = (self.beat * sub).floor() as i32;
                     let n = match (racing, step % 4) {
@@ -595,7 +680,7 @@ impl Band {
                 }
                 if before.floor() != self.beat.floor() {
                     let b = self.beat.floor();
-                    let bar = (b / 4.0).floor() as usize;
+                    let bar = (b / self.bar).floor() as usize;
                     let root = self.roots.get(bar % self.roots.len().max(1)).copied().unwrap_or(48.0);
                     if racing && (b as i32) % 2 == 0 {
                         self.thumps.push((0.0, 0.35));
@@ -608,8 +693,10 @@ impl Band {
                     self.hats.push(0.0);
                 }
                 if self.beat >= self.song_len {
-                    self.beat -= self.song_len;
-                    self.next_note = 0;
+                    // on to the next tune in the playlist
+                    let i = usize::from(self.song != Music::Menu);
+                    self.turn[i] += 1;
+                    self.load();
                 }
             }
             for t in &mut self.tones {
@@ -760,7 +847,7 @@ mod tests {
     }
 
     fn rms(live: Live, secs: f32) -> f32 {
-        let mut b = Band::new(Arc::new(Mutex::new(live)));
+        let mut b = Band::new(Arc::new(Mutex::new(live)), true);
         let n = (secs * SRF) as usize;
         let sum: f32 = (0..n).map(|_| b.next().unwrap().powi(2)).sum();
         (sum / n as f32).sqrt()
@@ -786,12 +873,74 @@ mod tests {
 
     #[test]
     fn the_songs_loop_on_whole_bars_with_a_root_for_each() {
-        for song in [first_light(), runners()] {
-            assert!(song.notes.len() > 30);
+        let carols = crate::carols::CAROLS.iter().map(carol);
+        for song in [first_light(), runners()].into_iter().chain(carols) {
+            assert!(song.notes.len() > 30, "{}", song.name);
             let last = song.notes.last().unwrap();
-            assert!((last.1 + last.2 - song.len).abs() < 1e-3);
-            assert_eq!(song.len % 4.0, 0.0, "whole bars");
-            assert_eq!(song.roots.len() as f32, song.len / 4.0, "a bass root per bar");
+            assert!((last.1 + last.2 - song.len).abs() < 1e-3, "{}", song.name);
+            assert_eq!(song.len % song.bar, 0.0, "{}: whole bars", song.name);
+            assert_eq!(song.roots.len() as f32, song.len / song.bar, "{}: a bass root per bar", song.name);
+            assert!(!song.source.is_empty(), "{}: its source is named", song.name);
+        }
+    }
+
+    #[test]
+    fn the_christmas_season_runs_from_december_to_twelfth_night() {
+        // days since 1970-01-01, worked out independently
+        assert_eq!(civil(0), (1970, 1, 1));
+        assert_eq!(civil(19_782), (2024, 2, 29));
+        assert_eq!(civil(11_017), (2000, 3, 1));
+        assert_eq!(civil(20_787), (2026, 11, 30));
+        assert_eq!(civil(20_788), (2026, 12, 1));
+        assert_eq!(civil(20_824), (2027, 1, 6));
+        assert_eq!(civil(20_825), (2027, 1, 7));
+    }
+
+    #[test]
+    fn carols_play_in_season_between_our_own_tunes() {
+        let names = |race, xmas| playlist(race, xmas).iter().map(|s| s.name).collect::<Vec<_>>();
+        // out of season: our own tunes and the winter pieces, no carols
+        assert_eq!(names(false, false), ["First Light"]);
+        assert_eq!(names(true, false), ["Runners", "March of the Wooden Soldiers"]);
+        // in season a carol opens each list, then ours, then the rest
+        let race = names(true, true);
+        assert_eq!(race[0], "Jingle Bells");
+        assert_eq!(race[1], "Runners");
+        for t in ["Deck the Hall", "God Rest You Merry, Gentlemen", "Good King Wenceslas", "March of the Wooden Soldiers"] {
+            assert!(race.contains(&t), "{t} in the race");
+        }
+        let menu = names(false, true);
+        assert_eq!(menu[1], "First Light");
+        for t in ["Stille Nacht", "The Holly and the Ivy", "Vom Himmel hoch"] {
+            assert!(menu.contains(&t), "{t} on the menus");
+        }
+    }
+
+    #[test]
+    fn every_tune_is_heard_and_the_list_moves_on() {
+        for (music, i) in [(Music::Menu, 0), (Music::Race, 1)] {
+            let mut b = Band::new(Arc::new(Mutex::new(Live { music, ..Default::default() })), true);
+            let count = b.lists[i].len();
+            for k in 0..count {
+                // a few seconds of each tune, then skip to its last beat
+                let n = (3.0 * SRF) as usize;
+                let (mut sum, mut peak) = (0.0f32, 0.0f32);
+                for _ in 0..n {
+                    let x = b.next().unwrap();
+                    sum += x * x;
+                    peak = peak.max(x.abs());
+                }
+                let name = b.lists[i][k].name;
+                assert!((sum / n as f32).sqrt() > 0.01, "{name} is heard");
+                assert!(peak <= 1.0, "{name} peaks at {peak}");
+                assert_eq!(b.turn[i] % count, k, "{name} is playing");
+                b.beat = b.song_len - 0.01;
+                b.next_note = b.notes.len();
+                for _ in 0..(0.5 * SRF) as usize {
+                    b.next();
+                }
+            }
+            assert_eq!(b.turn[i] % count, 0, "round to the first again");
         }
     }
 }

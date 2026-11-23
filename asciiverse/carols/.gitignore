@@ -1,0 +1,3 @@
+# CPDL editions: fetched by gen_carols.py, pinned by SHA-256, not committed
+c-*.mid
+__pycache__/
